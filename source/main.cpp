@@ -3,114 +3,207 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 #include <sys/stat.h>
+#include <cstdio>
 #include <algorithm>
 #include <string>
 #include <vector>
 
 #include "apk.h"
 
-static const char* APK_DIR = "sdmc:/BareDroidNX/apks";
+static const char* APK_DIR  = "sdmc:/BareDroidNX/apks";
+static const char* LOG_FILE = "sdmc:/BareDroidNX/log.txt";
 
 // ---------------------------------------------------------------------------
-// Layout constants (1280x720)
+// Layout (1280×720)
 // ---------------------------------------------------------------------------
-static const int SW = 1280, SH = 720;
+static const int SW       = 1280;
+static const int SH       = 720;
 static const int HEADER_H = 72;
 static const int FOOTER_H = 48;
 static const int LIST_Y   = HEADER_H;
 static const int LIST_H   = SH - HEADER_H - FOOTER_H;
 static const int ITEM_H   = 100;
 static const int ICON_SZ  = 72;
-static const int VISIBLE  = LIST_H / ITEM_H;  // 6
+static const int VISIBLE  = LIST_H / ITEM_H;   // 6 items
 
 // Colors
-static const SDL_Color C_BG       = {15,  15,  26,  255};
-static const SDL_Color C_HEADER   = {22,  22,  56,  255};
-static const SDL_Color C_FOOTER   = {10,  10,  20,  255};
-static const SDL_Color C_SEL      = {38,  68, 128,  255};
-static const SDL_Color C_DIV      = {35,  35,  65,  255};
-static const SDL_Color C_WHITE    = {255, 255, 255, 255};
-static const SDL_Color C_GRAY     = {160, 160, 180, 255};
-static const SDL_Color C_DIM      = {100, 100, 120, 255};
+static const SDL_Color C_BG     = {15,  15,  26,  255};
+static const SDL_Color C_HEADER = {22,  22,  56,  255};
+static const SDL_Color C_FOOTER = {10,  10,  20,  255};
+static const SDL_Color C_SEL    = {38,  68, 128,  255};
+static const SDL_Color C_DIV    = {35,  35,  65,  255};
+static const SDL_Color C_WHITE  = {255, 255, 255, 255};
+static const SDL_Color C_GRAY   = {160, 160, 180, 255};
+static const SDL_Color C_DIM    = {100, 100, 120, 255};
+static const SDL_Color C_ICON_PH= {50,  50,  75,  255};
 
 // ---------------------------------------------------------------------------
-// Renderer helpers
+// Log helpers — writes to SD card so we can inspect errors without a screen
+// ---------------------------------------------------------------------------
+static FILE* g_log = nullptr;
+static void logOpen()  { g_log = fopen(LOG_FILE, "w"); }
+static void logClose() { if (g_log) { fclose(g_log); g_log = nullptr; } }
+static void logMsg(const char* msg) {
+    if (g_log) { fputs(msg, g_log); fputc('\n', g_log); fflush(g_log); }
+}
+static void logSDL(const char* prefix) {
+    if (!g_log) return;
+    fputs(prefix, g_log);
+    fputs(": ", g_log);
+    fputs(SDL_GetError(), g_log);
+    fputc('\n', g_log);
+    fflush(g_log);
+}
+
+// ---------------------------------------------------------------------------
+// Switch joystick button indices (SDL2 joystick mode)
+// ---------------------------------------------------------------------------
+static const int BTN_A     = 0;
+static const int BTN_B     = 1;
+static const int BTN_Y     = 3;
+static const int BTN_PLUS  = 10;
+
 // ---------------------------------------------------------------------------
 struct App {
-    SDL_Window*          win  = nullptr;
-    SDL_Renderer*        rdr  = nullptr;
-    TTF_Font*            fLg  = nullptr;  // 28px
-    TTF_Font*            fSm  = nullptr;  // 18px
-    SDL_GameController*  ctrl = nullptr;
+    SDL_Window*    win  = nullptr;
+    SDL_Renderer*  rdr  = nullptr;
+    TTF_Font*      fLg  = nullptr;  // 28px
+    TTF_Font*      fSm  = nullptr;  // 18px
+    SDL_Joystick*  joy  = nullptr;
 
-    std::vector<ApkInfo>     apks;
+    std::vector<ApkInfo>      apks;
     std::vector<SDL_Texture*> icons;
     int selected = 0;
     int scroll   = 0;
 
-    bool init() {
+    // ------------------------------------------------------------------
+    TTF_Font* openFont(int ptsize) {
+        // 1. Try Switch system font (BFTTF = 8-byte header + OTF data)
         plInitialize(PlServiceType_User);
-
-        SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER);
-        IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
-        TTF_Init();
-
-        win = SDL_CreateWindow("BareDroidNX", 0, 0, SW, SH, SDL_WINDOW_FULLSCREEN);
-        rdr = SDL_CreateRenderer(win, -1,
-            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-        SDL_SetRenderDrawBlendMode(rdr, SDL_BLENDMODE_BLEND);
-
-        // Load Switch system font (BFTTF = 8-byte header + OTF/TTF data)
-        PlFontData fd;
+        PlFontData fd = {};
         if (plGetSharedFontByType(&fd, PlSharedFontType_Standard) == 0 && fd.size > 8) {
-            const uint8_t* fontData = (const uint8_t*)fd.address + 8;
-            int            fontSize = fd.size - 8;
-            SDL_RWops* rw1 = SDL_RWFromConstMem(fontData, fontSize);
-            fLg = TTF_OpenFontRW(rw1, 1, 28);
-            SDL_RWops* rw2 = SDL_RWFromConstMem(fontData, fontSize);
-            fSm = TTF_OpenFontRW(rw2, 1, 18);
+            SDL_RWops* rw = SDL_RWFromConstMem(
+                (const uint8_t*)fd.address + 8, (int)fd.size - 8);
+            TTF_Font* f = TTF_OpenFontRW(rw, 1, ptsize);
+            if (f) { logMsg("  font: system BFTTF"); return f; }
+            logSDL("  BFTTF open failed");
+        } else {
+            logMsg("  plGetSharedFontByType failed");
         }
-
-        if (SDL_NumJoysticks() > 0 && SDL_IsGameController(0))
-            ctrl = SDL_GameControllerOpen(0);
-
-        return (win && rdr && fLg && fSm);
+        // 2. Fallback: bundled DejaVu Sans in romfs
+        romfsInit();
+        TTF_Font* f = TTF_OpenFont("romfs:/fonts/DejaVuSans.ttf", ptsize);
+        if (f) { logMsg("  font: romfs DejaVuSans"); return f; }
+        logSDL("  romfs font open failed");
+        return nullptr;
     }
 
+    // ------------------------------------------------------------------
+    bool init() {
+        mkdir("sdmc:/BareDroidNX", 0777);
+        logOpen();
+        logMsg("BareDroidNX starting");
+
+        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) != 0) {
+            logSDL("SDL_Init failed"); logClose(); return false;
+        }
+        logMsg("SDL_Init OK");
+
+        if (IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG) == 0)
+            logSDL("IMG_Init warning");
+        if (TTF_Init() != 0) {
+            logSDL("TTF_Init failed"); logClose(); return false;
+        }
+        logMsg("TTF_Init OK");
+
+        // On Switch SDL2, SDL_WINDOW_SHOWN is correct — fullscreen is implicit
+        win = SDL_CreateWindow("BareDroidNX",
+            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+            SW, SH, SDL_WINDOW_SHOWN);
+        if (!win) { logSDL("CreateWindow failed"); logClose(); return false; }
+        logMsg("Window OK");
+
+        rdr = SDL_CreateRenderer(win, -1,
+            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        if (!rdr) {
+            logSDL("Accelerated renderer failed, trying software");
+            rdr = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
+        }
+        if (!rdr) { logSDL("CreateRenderer failed"); logClose(); return false; }
+        logMsg("Renderer OK");
+
+        SDL_SetRenderDrawBlendMode(rdr, SDL_BLENDMODE_BLEND);
+
+        fLg = openFont(28);
+        fSm = openFont(18);
+        if (!fLg || !fSm) {
+            logMsg("Font load failed"); logClose(); return false;
+        }
+        logMsg("Fonts OK");
+
+        if (SDL_NumJoysticks() > 0) {
+            joy = SDL_JoystickOpen(0);
+            if (!joy) logSDL("JoystickOpen warning");
+            else       logMsg("Joystick OK");
+        }
+
+        logMsg("init complete");
+        return true;
+    }
+
+    // ------------------------------------------------------------------
     void cleanup() {
         for (auto* t : icons) if (t) SDL_DestroyTexture(t);
         if (fLg)  TTF_CloseFont(fLg);
         if (fSm)  TTF_CloseFont(fSm);
-        if (ctrl) SDL_GameControllerClose(ctrl);
-        SDL_DestroyRenderer(rdr);
-        SDL_DestroyWindow(win);
-        TTF_Quit(); IMG_Quit(); SDL_Quit();
+        if (joy)  SDL_JoystickClose(joy);
+        if (rdr)  SDL_DestroyRenderer(rdr);
+        if (win)  SDL_DestroyWindow(win);
+        romfsExit();
         plExit();
+        TTF_Quit(); IMG_Quit(); SDL_Quit();
+        logMsg("cleanup done");
+        logClose();
     }
 
-    // Fill rect with an SDL_Color
-    void fillRect(int x, int y, int w, int h, SDL_Color c) {
+    // ------------------------------------------------------------------
+    void fill(int x, int y, int w, int h, SDL_Color c) {
         SDL_SetRenderDrawColor(rdr, c.r, c.g, c.b, c.a);
         SDL_Rect r = {x, y, w, h};
         SDL_RenderFillRect(rdr, &r);
     }
 
-    // Render text, return rendered width
-    int drawText(TTF_Font* f, const std::string& text, SDL_Color col, int x, int y) {
-        if (text.empty() || !f) return 0;
-        SDL_Surface* s = TTF_RenderUTF8_Blended(f, text.c_str(), col);
-        if (!s) return 0;
-        SDL_Texture* t = SDL_CreateTextureFromSurface(rdr, s);
-        int w = s->w;
-        SDL_FreeSurface(s);
-        if (!t) return 0;
-        SDL_Rect dst = {x, y, w, 0};
-        SDL_QueryTexture(t, nullptr, nullptr, &dst.w, &dst.h);
-        SDL_RenderCopy(rdr, t, nullptr, &dst);
-        SDL_DestroyTexture(t);
+    int drawText(TTF_Font* f, const std::string& s, SDL_Color col, int x, int y) {
+        if (s.empty() || !f) return 0;
+        SDL_Surface* surf = TTF_RenderUTF8_Blended(f, s.c_str(), col);
+        if (!surf) return 0;
+        SDL_Texture* tex = SDL_CreateTextureFromSurface(rdr, surf);
+        int w = surf->w;
+        SDL_FreeSurface(surf);
+        if (!tex) return 0;
+        int tw, th;
+        SDL_QueryTexture(tex, nullptr, nullptr, &tw, &th);
+        SDL_Rect dst = {x, y, tw, th};
+        SDL_RenderCopy(rdr, tex, nullptr, &dst);
+        SDL_DestroyTexture(tex);
         return w;
     }
 
+    std::string clamp(TTF_Font* f, const std::string& s, int maxW) {
+        int w = 0, h = 0;
+        TTF_SizeUTF8(f, s.c_str(), &w, &h);
+        if (w <= maxW) return s;
+        std::string t = s;
+        while (!t.empty()) {
+            t.pop_back();
+            std::string try_ = t + "...";
+            TTF_SizeUTF8(f, try_.c_str(), &w, &h);
+            if (w <= maxW) return try_;
+        }
+        return "...";
+    }
+
+    // ------------------------------------------------------------------
     void loadIcons() {
         icons.assign(apks.size(), nullptr);
         for (size_t i = 0; i < apks.size(); i++) {
@@ -121,7 +214,7 @@ struct App {
             if (!surf) continue;
             icons[i] = SDL_CreateTextureFromSurface(rdr, surf);
             SDL_FreeSurface(surf);
-            apks[i].iconPng.clear(); // free raw bytes after upload
+            apks[i].iconPng.clear();
         }
     }
 
@@ -130,38 +223,19 @@ struct App {
         icons.clear();
         apks = ::scanApks(APK_DIR);
         loadIcons();
-        selected = 0;
-        scroll   = 0;
+        selected = 0; scroll = 0;
     }
 
-    // Clamp a UTF8 string to roughly maxW pixels wide
-    std::string clampText(TTF_Font* f, const std::string& text, int maxW) {
-        int w = 0, h = 0;
-        TTF_SizeUTF8(f, text.c_str(), &w, &h);
-        if (w <= maxW) return text;
-        std::string t = text;
-        while (!t.empty()) {
-            t.pop_back();
-            std::string try_ = t + "...";
-            TTF_SizeUTF8(f, try_.c_str(), &w, &h);
-            if (w <= maxW) return try_;
-        }
-        return "...";
-    }
-
-    // ---------------------------------------------------------------------------
+    // ------------------------------------------------------------------
     void render() {
-        // Background
-        fillRect(0, 0, SW, SH, C_BG);
+        fill(0, 0, SW, SH, C_BG);
 
         // Header
-        fillRect(0, 0, SW, HEADER_H, C_HEADER);
+        fill(0, 0, SW, HEADER_H, C_HEADER);
         drawText(fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
-
-        // APK count in header
         if (!apks.empty()) {
-            std::string cnt = std::to_string(apks.size()) + " APK" +
-                              (apks.size() != 1 ? "s" : "");
+            std::string cnt = std::to_string(apks.size()) +
+                              (apks.size() == 1 ? " APK" : " APKs");
             int w = 0, h = 0;
             TTF_SizeUTF8(fSm, cnt.c_str(), &w, &h);
             drawText(fSm, cnt, C_DIM, SW - w - 30, (HEADER_H - 18) / 2);
@@ -169,61 +243,51 @@ struct App {
 
         // List
         if (apks.empty()) {
-            drawText(fSm, "No APKs found — place .apk files in sdmc:/BareDroidNX/apks/",
+            drawText(fSm,
+                "No APKs found — place .apk files in sdmc:/BareDroidNX/apks/",
                 C_GRAY, 30, LIST_Y + 30);
         } else {
             int end = std::min((int)apks.size(), scroll + VISIBLE);
             for (int i = scroll; i < end; i++) {
                 int iy = LIST_Y + (i - scroll) * ITEM_H;
 
-                // Selection highlight
-                if (i == selected)
-                    fillRect(0, iy, SW, ITEM_H, C_SEL);
+                if (i == selected) fill(0, iy, SW, ITEM_H, C_SEL);
 
-                // Divider
                 SDL_SetRenderDrawColor(rdr, C_DIV.r, C_DIV.g, C_DIV.b, 255);
                 SDL_RenderDrawLine(rdr, 0, iy + ITEM_H - 1, SW, iy + ITEM_H - 1);
 
-                // Icon
                 int iconY = iy + (ITEM_H - ICON_SZ) / 2;
                 if (i < (int)icons.size() && icons[i]) {
                     SDL_Rect dst = {20, iconY, ICON_SZ, ICON_SZ};
                     SDL_RenderCopy(rdr, icons[i], nullptr, &dst);
                 } else {
-                    // Placeholder
-                    fillRect(20, iconY, ICON_SZ, ICON_SZ, {50, 50, 75, 255});
-                    drawText(fSm, "?", C_DIM,
-                        20 + (ICON_SZ - 10) / 2, iconY + (ICON_SZ - 18) / 2);
+                    fill(20, iconY, ICON_SZ, ICON_SZ, C_ICON_PH);
                 }
 
-                // App name + package name
-                int tx = 20 + ICON_SZ + 16;
+                int tx   = 20 + ICON_SZ + 16;
                 int maxW = SW - tx - 30;
-                std::string name = clampText(fLg, apks[i].appName, maxW);
-                std::string pkg  = clampText(fSm,
+                drawText(fLg, clamp(fLg, apks[i].appName, maxW),  C_WHITE, tx, iy + 20);
+                drawText(fSm, clamp(fSm,
                     apks[i].packageName.empty() ? apks[i].filename : apks[i].packageName,
-                    maxW);
-                drawText(fLg, name, C_WHITE, tx, iy + 20);
-                drawText(fSm, pkg,  C_GRAY,  tx, iy + 60);
+                    maxW), C_GRAY, tx, iy + 60);
             }
-
             // Scrollbar
             if ((int)apks.size() > VISIBLE) {
                 int barH = LIST_H * VISIBLE / (int)apks.size();
                 int barY = LIST_Y + LIST_H * scroll / (int)apks.size();
-                fillRect(SW - 6, barY, 6, barH, {80, 80, 130, 200});
+                fill(SW - 6, barY, 6, barH, {80, 80, 130, 200});
             }
         }
 
         // Footer
-        fillRect(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
+        fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
         drawText(fSm, "A: Launch     Y: Rescan     +: Quit",
             C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
 
         SDL_RenderPresent(rdr);
     }
 
-    // ---------------------------------------------------------------------------
+    // ------------------------------------------------------------------
     void showLaunchStub(int idx) {
         const ApkInfo& apk = apks[idx];
         bool done = false;
@@ -231,38 +295,38 @@ struct App {
             SDL_Event ev;
             while (SDL_PollEvent(&ev)) {
                 if (ev.type == SDL_QUIT) done = true;
-                if (ev.type == SDL_CONTROLLERBUTTONDOWN &&
-                    ev.cbutton.button == SDL_CONTROLLER_BUTTON_B) done = true;
+                if (ev.type == SDL_JOYBUTTONDOWN &&
+                    ev.jbutton.button == BTN_B)   done = true;
                 if (ev.type == SDL_KEYDOWN &&
-                    (ev.key.keysym.sym == SDLK_ESCAPE ||
-                     ev.key.keysym.sym == SDLK_b)) done = true;
+                    ev.key.keysym.sym == SDLK_ESCAPE) done = true;
             }
 
-            fillRect(0, 0, SW, SH, C_BG);
+            fill(0, 0, SW, SH, C_BG);
 
-            // Large icon
             if (idx < (int)icons.size() && icons[idx]) {
                 int sz = 200;
                 SDL_Rect dst = {(SW - sz) / 2, 160, sz, sz};
                 SDL_RenderCopy(rdr, icons[idx], nullptr, &dst);
             }
 
-            // Centered app name
             {
                 int w = 0, h = 0;
                 TTF_SizeUTF8(fLg, apk.appName.c_str(), &w, &h);
                 drawText(fLg, apk.appName, C_WHITE, (SW - w) / 2, 390);
             }
-            // Centered package name
-            {
+            if (!apk.packageName.empty()) {
                 int w = 0, h = 0;
                 TTF_SizeUTF8(fSm, apk.packageName.c_str(), &w, &h);
                 drawText(fSm, apk.packageName, C_GRAY, (SW - w) / 2, 432);
             }
 
-            drawText(fSm, "(loader not yet implemented)", C_DIM,
-                (SW - 380) / 2, 520);
-            drawText(fSm, "B: Back", C_DIM, (SW - 90) / 2, 580);
+            std::string note = "(loader not yet implemented)";
+            { int w = 0, h = 0; TTF_SizeUTF8(fSm, note.c_str(), &w, &h);
+              drawText(fSm, note, C_DIM, (SW - w) / 2, 520); }
+
+            std::string back = "B: Back";
+            { int w = 0, h = 0; TTF_SizeUTF8(fSm, back.c_str(), &w, &h);
+              drawText(fSm, back, C_DIM, (SW - w) / 2, 580); }
 
             SDL_RenderPresent(rdr);
             SDL_Delay(16);
@@ -275,24 +339,21 @@ int main(int, char**) {
     App app;
     if (!app.init()) return 1;
 
-    mkdir("sdmc:/BareDroidNX", 0777);
     mkdir(APK_DIR, 0777);
 
-    // Scanning screen
-    {
-        app.fillRect(0, 0, SW, SH, C_BG);
-        app.fillRect(0, 0, SW, HEADER_H, C_HEADER);
-        app.drawText(app.fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
-        app.drawText(app.fSm, "Scanning for APKs...", C_GRAY, 30, LIST_Y + 30);
-        SDL_RenderPresent(app.rdr);
-    }
+    // Scanning splash
+    app.fill(0, 0, SW, SH, C_BG);
+    app.fill(0, 0, SW, HEADER_H, C_HEADER);
+    app.drawText(app.fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
+    app.drawText(app.fSm, "Scanning for APKs...", C_GRAY, 30, LIST_Y + 30);
+    SDL_RenderPresent(app.rdr);
 
     app.apks = scanApks(APK_DIR);
     app.loadIcons();
     app.render();
 
-    bool quit = false;
-    Uint32 lastStickMove = 0;
+    bool      quit        = false;
+    Uint32    lastStick   = 0;
 
     while (!quit) {
         SDL_Event ev;
@@ -301,55 +362,57 @@ int main(int, char**) {
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) { quit = true; break; }
 
-            if (ev.type == SDL_CONTROLLERBUTTONDOWN) {
-                switch (ev.cbutton.button) {
-                    case SDL_CONTROLLER_BUTTON_START:
+            if (ev.type == SDL_JOYBUTTONDOWN) {
+                switch (ev.jbutton.button) {
+                    case BTN_PLUS:
                         quit = true;
                         break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-                        if (!app.apks.empty() && app.selected < (int)app.apks.size() - 1) {
-                            app.selected++;
-                            if (app.selected >= app.scroll + VISIBLE) app.scroll++;
-                            redraw = true;
-                        }
-                        break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_UP:
-                        if (!app.apks.empty() && app.selected > 0) {
-                            app.selected--;
-                            if (app.selected < app.scroll) app.scroll--;
-                            redraw = true;
-                        }
-                        break;
-                    case SDL_CONTROLLER_BUTTON_A:
+                    case BTN_A:
                         if (!app.apks.empty()) {
                             app.showLaunchStub(app.selected);
                             redraw = true;
                         }
                         break;
-                    case SDL_CONTROLLER_BUTTON_Y:
+                    case BTN_Y:
                         app.rescan();
                         redraw = true;
+                        break;
+                    case BTN_B:
                         break;
                 }
             }
 
-            // Left stick navigation with repeat cooldown
-            if (ev.type == SDL_CONTROLLERAXISMOTION &&
-                ev.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY) {
+            if (ev.type == SDL_JOYHATMOTION) {
+                if (ev.jhat.value & SDL_HAT_DOWN) {
+                    if (!app.apks.empty() && app.selected < (int)app.apks.size() - 1) {
+                        app.selected++;
+                        if (app.selected >= app.scroll + VISIBLE) app.scroll++;
+                        redraw = true;
+                    }
+                }
+                if (ev.jhat.value & SDL_HAT_UP) {
+                    if (!app.apks.empty() && app.selected > 0) {
+                        app.selected--;
+                        if (app.selected < app.scroll) app.scroll--;
+                        redraw = true;
+                    }
+                }
+            }
+
+            // Left stick fallback
+            if (ev.type == SDL_JOYAXISMOTION && ev.jaxis.axis == 1) {
                 Uint32 now = SDL_GetTicks();
-                if (now - lastStickMove > 180) {
-                    if (ev.caxis.value > 16384 && !app.apks.empty() &&
+                if (now - lastStick > 180) {
+                    if (ev.jaxis.value > 16384 && !app.apks.empty() &&
                         app.selected < (int)app.apks.size() - 1) {
                         app.selected++;
                         if (app.selected >= app.scroll + VISIBLE) app.scroll++;
-                        lastStickMove = now;
-                        redraw = true;
-                    } else if (ev.caxis.value < -16384 && !app.apks.empty() &&
+                        lastStick = now; redraw = true;
+                    } else if (ev.jaxis.value < -16384 && !app.apks.empty() &&
                                app.selected > 0) {
                         app.selected--;
                         if (app.selected < app.scroll) app.scroll--;
-                        lastStickMove = now;
-                        redraw = true;
+                        lastStick = now; redraw = true;
                     }
                 }
             }
