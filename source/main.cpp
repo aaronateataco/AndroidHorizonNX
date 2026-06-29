@@ -266,10 +266,13 @@ struct App {
 
                 int tx   = 20 + ICON_SZ + 16;
                 int maxW = SW - tx - 30;
-                drawText(fLg, clamp(fLg, apks[i].appName, maxW),  C_WHITE, tx, iy + 20);
-                drawText(fSm, clamp(fSm,
-                    apks[i].packageName.empty() ? apks[i].filename : apks[i].packageName,
-                    maxW), C_GRAY, tx, iy + 60);
+                drawText(fLg, clamp(fLg, apks[i].appName, maxW), C_WHITE, tx, iy + 16);
+
+                std::string pkgLine =
+                    (apks[i].packageName.empty() ? apks[i].filename : apks[i].packageName);
+                if (!apks[i].versionName.empty())
+                    pkgLine += "  v" + apks[i].versionName;
+                drawText(fSm, clamp(fSm, pkgLine, maxW), C_GRAY, tx, iy + 58);
             }
             // Scrollbar
             if ((int)apks.size() > VISIBLE) {
@@ -314,10 +317,14 @@ struct App {
                 TTF_SizeUTF8(fLg, apk.appName.c_str(), &w, &h);
                 drawText(fLg, apk.appName, C_WHITE, (SW - w) / 2, 390);
             }
-            if (!apk.packageName.empty()) {
-                int w = 0, h = 0;
-                TTF_SizeUTF8(fSm, apk.packageName.c_str(), &w, &h);
-                drawText(fSm, apk.packageName, C_GRAY, (SW - w) / 2, 432);
+            {
+                std::string sub = apk.packageName;
+                if (!apk.versionName.empty()) sub += "  v" + apk.versionName;
+                if (!sub.empty()) {
+                    int w = 0, h = 0;
+                    TTF_SizeUTF8(fSm, sub.c_str(), &w, &h);
+                    drawText(fSm, sub, C_GRAY, (SW - w) / 2, 432);
+                }
             }
 
             std::string note = "(loader not yet implemented)";
