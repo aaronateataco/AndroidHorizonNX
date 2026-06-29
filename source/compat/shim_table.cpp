@@ -10,12 +10,19 @@
 #include <cmath>
 #include <cerrno>
 #include <ctime>
+#include <cctype>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <malloc.h>
-#include <strings.h>  // strcasecmp, strncasecmp
+#include <strings.h>
+#include <wchar.h>
+#include <wctype.h>
+#include <locale.h>
+#include <setjmp.h>
+#include <climits>
 
 // Newlib stubs for POSIX functions that may be missing
 static size_t stub_strnlen(const char* s, size_t n) {
@@ -246,6 +253,151 @@ static int32_t acfg_getDensity(void*) { return 320; } // xhdpi (Switch screen)
 static int32_t acfg_getOrientation(void*) { return 2; } // landscape
 static int32_t acfg_getScreenSize(void*) { return 3; } // large
 static int32_t acfg_getSdkVersion(void*) { return 26; }
+
+// ─── sincosf ─────────────────────────────────────────────────────────────────
+static void stub_sincosf(float x, float* s, float* c) { *s = sinf(x); *c = cosf(x); }
+
+// ─── stpcpy (POSIX — may not be exposed by newlib header) ────────────────────
+static char* stub_stpcpy(char* dst, const char* src) {
+    size_t n = strlen(src);
+    memcpy(dst, src, n + 1);
+    return dst + n;
+}
+
+// ─── vasprintf (GNU extension) ────────────────────────────────────────────────
+static int stub_vasprintf(char** out, const char* fmt, va_list va) {
+    va_list va2; va_copy(va2, va);
+    int n = vsnprintf(nullptr, 0, fmt, va2); va_end(va2);
+    if (n < 0) { *out = nullptr; return -1; }
+    *out = (char*)malloc((size_t)n + 1);
+    if (!*out) return -1;
+    vsprintf(*out, fmt, va);
+    return n;
+}
+
+// ─── POSIX semaphores (single-threaded stubs) ─────────────────────────────────
+struct BnxSem { volatile int value; };
+static int stub_sem_init(BnxSem* s, int, unsigned int v) { s->value = (int)v; return 0; }
+static int stub_sem_destroy(BnxSem*) { return 0; }
+static int stub_sem_post(BnxSem* s) { s->value++; return 0; }
+static int stub_sem_wait(BnxSem* s) {
+    if (s->value > 0) { s->value--; return 0; }
+    compatLog("WARN: sem_wait on empty semaphore — pretending it's OK");
+    return 0;
+}
+static int stub_sem_trywait(BnxSem* s) {
+    if (s->value > 0) { s->value--; return 0; }
+    errno = EAGAIN; return -1;
+}
+
+// ─── Network stubs (no BSD socket service configured) ────────────────────────
+static int stub_socket(int, int, int)               { errno = ENOTSUP; return -1; }
+static int stub_bind(int, const void*, unsigned)    { errno = ENOTSUP; return -1; }
+static int stub_connect(int, const void*, unsigned) { errno = ECONNREFUSED; return -1; }
+static int stub_listen(int, int)                    { errno = ENOTSUP; return -1; }
+static int stub_select(int, void*, void*, void*, void*) { errno = ENOTSUP; return -1; }
+static ssize_t stub_recv(int, void*, size_t, int)   { errno = ENOTSUP; return -1; }
+static ssize_t stub_send(int, const void*, size_t, int) { errno = ENOTSUP; return -1; }
+static int stub_getsockname(int, void*, unsigned*)  { errno = ENOTSUP; return -1; }
+static int stub_getsockopt(int, int, int, void*, unsigned*) { errno = ENOTSUP; return -1; }
+static void* stub_gethostbyname(const char*)        { return nullptr; }
+static int stub_fcntl_sock(int, int, ...)           { return 0; }
+static int* stub_get_h_errno(void)                  { static int h = 0; return &h; }
+
+// ─── Scheduling ──────────────────────────────────────────────────────────────
+static int stub_sched_yield(void) { svcSleepThread(0); return 0; }
+
+// ─── System ──────────────────────────────────────────────────────────────────
+static long stub_sysconf(int n) {
+    switch (n) {
+        case 30: return 4096;  // _SC_PAGESIZE
+        case 84: return 4;     // _SC_NPROCESSORS_ONLN — Tegra X1 has 4 ARM cores
+        default: return -1;
+    }
+}
+static char* stub_getcwd(char* buf, size_t sz) {
+    if (!buf || sz < 2) return nullptr;
+    buf[0] = '/'; buf[1] = '\0'; return buf;
+}
+static long stub_syscall(long, ...) { errno = ENOSYS; return -1; }
+static int  stub_dl_iterate_phdr(void*, void*) { return 0; }
+
+// ─── Android-specific ────────────────────────────────────────────────────────
+static void stub_android_abort_msg(const char* msg) {
+    compatLogFmt("android_abort_message: %s", msg ? msg : "");
+}
+
+// ─── syslog ──────────────────────────────────────────────────────────────────
+static void stub_openlog(const char* id, int, int) {
+    compatLogFmt("openlog: %s", id ? id : "");
+}
+static void stub_closelog(void) {}
+static void stub_syslog(int, const char* fmt, ...) {
+    char buf[512]; va_list va; va_start(va, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, va); va_end(va);
+    compatLog(buf);
+}
+
+// ─── Locale POSIX extensions (stub — newlib may lack these) ──────────────────
+typedef void* bnx_locale_t;
+static bnx_locale_t stub_newlocale(int, const char*, bnx_locale_t) { return (bnx_locale_t)1; }
+static void stub_freelocale(bnx_locale_t) {}
+static bnx_locale_t stub_uselocale(bnx_locale_t) { return (bnx_locale_t)1; }
+static int stub_mb_cur_max(void) { return 1; }
+
+// ─── strtod/strtoll locale variants ─────────────────────────────────────────
+static long long        stub_strtoll_l(const char* s, char** e, int b, void*) { return strtoll(s, e, b); }
+static unsigned long long stub_strtoull_l(const char* s, char** e, int b, void*) { return strtoull(s, e, b); }
+static long double      stub_strtold_l(const char* s, char** e, void*)        { return strtold(s, e); }
+
+// ─── Bionic fortified wrappers ────────────────────────────────────────────────
+static size_t  chk_strlen(const char* s, size_t)               { return strlen(s); }
+static void*   chk_memcpy(void* d, const void* s, size_t n, size_t)   { return memcpy(d,s,n); }
+static void*   chk_memmove(void* d, const void* s, size_t n, size_t)  { return memmove(d,s,n); }
+static char*   chk_strcat(char* d, const char* s, size_t)     { return strcat(d,s); }
+static char*   chk_strcpy(char* d, const char* s, size_t)     { return strcpy(d,s); }
+static char*   chk_strncpy(char* d, const char* s, size_t n, size_t, size_t) { return strncpy(d,s,n); }
+static int     chk_vsprintf(char* d, int, size_t, const char* f, va_list v)  { return vsprintf(d,f,v); }
+static int     chk_vsnprintf(char* d, size_t n, int, size_t, const char* f, va_list v) { return vsnprintf(d,n,f,v); }
+static ssize_t chk_read(int fd, void* b, size_t n, size_t)    { return read(fd,b,n); }
+static int     chk_open2(const char* p, int fl)                { return open(p, fl, 0666); }
+
+// ─── pthread_mutexattr extras ─────────────────────────────────────────────────
+static int pt_mattr_init(void* a)       { if (a) memset(a, 0, 4); return 0; }
+static int pt_mattr_destroy(void*)      { return 0; }
+static int pt_mattr_settype(void*, int) { return 0; }
+
+// ─── wcsnrtombs / mbsnrtowcs (GNU ext — stub in case newlib lacks them) ──────
+static size_t stub_wcsnrtombs(char* d, const wchar_t** src, size_t nwc, size_t len, void*) {
+    if (!src || !*src || !len) return 0;
+    size_t w = 0;
+    while (nwc-- && **src) {
+        char mb[MB_LEN_MAX];
+        int n = wctomb(mb, *(*src)++);
+        if (n <= 0 || w + (size_t)n >= len) break;
+        if (d) memcpy(d + w, mb, n);
+        w += n;
+    }
+    if (d && w < len) d[w] = '\0';
+    return w;
+}
+static size_t stub_mbsnrtowcs(wchar_t* d, const char** src, size_t nmc, size_t len, void*) {
+    if (!src || !*src) return 0;
+    size_t count = 0;
+    while (nmc > 0 && **src && count < len) {
+        wchar_t wc;
+        int n = mbtowc(&wc, *src, nmc);
+        if (n <= 0) break;
+        if (d) d[count] = wc;
+        count++; *src += n; nmc -= (size_t)n;
+    }
+    return count;
+}
+
+// ─── __sF (Bionic stdio backing array for stdin/stdout/stderr) ───────────────
+// Bionic defines FILE __sF[3]; our games may reference &__sF[N] as a FILE*.
+// Provide a zero-filled placeholder so GOT entries are non-null.
+static uint8_t g_fake_sF[3 * 256] = {};
 
 // ─── Stack protection (Bionic provides these; stub for newlib) ────────────────
 extern "C" { uintptr_t __stack_chk_guard = 0xDEAD0BEEF; }
@@ -771,6 +923,180 @@ static const ShimEntry g_shims[] = {
     {"glProgramParameteri",    (void*)glProgramParameteri},
     {"glGetProgramBinary",     (void*)glGetProgramBinary},
     {"glGetBufferPointerv",    (void*)glGetBufferPointerv},
+
+    // ── ctype passthrough ────────────────────────────────────────────────────
+    {"toupper",  (void*)toupper},
+    {"tolower",  (void*)tolower},
+    {"isalnum",  (void*)isalnum},
+    {"isalpha",  (void*)isalpha},
+    {"islower",  (void*)islower},
+    {"isupper",  (void*)isupper},
+    {"isdigit",  (void*)isdigit},
+    {"isspace",  (void*)isspace},
+    {"isprint",  (void*)isprint},
+    {"iscntrl",  (void*)iscntrl},
+    {"ispunct",  (void*)ispunct},
+    {"isblank",  (void*)isblank},
+    {"isxdigit", (void*)isxdigit},
+
+    // ── stdio extras ─────────────────────────────────────────────────────────
+    {"puts",      (void*)puts},
+    {"putchar",   (void*)putchar},
+    {"vsscanf",   (void*)vsscanf},
+    {"vasprintf", (void*)stub_vasprintf},
+
+    // ── string extras ────────────────────────────────────────────────────────
+    {"stpcpy",    (void*)stub_stpcpy},
+    {"strpbrk",   (void*)strpbrk},
+    {"strcoll",   (void*)strcoll},
+    {"strxfrm",   (void*)strxfrm},
+    {"strerror",  (void*)strerror},
+    {"strerror_r",(void*)_strerror_r},
+    {"strtold",   (void*)strtold},
+
+    // ── file I/O extras ──────────────────────────────────────────────────────
+    {"rename",  (void*)rename},
+    {"remove",  (void*)remove},
+    {"getcwd",  (void*)stub_getcwd},
+    {"fcntl",   (void*)stub_fcntl_sock},
+
+    // ── time ─────────────────────────────────────────────────────────────────
+    {"clock_gettime", (void*)clock_gettime},
+    {"nanosleep",     (void*)nanosleep},
+    {"gettimeofday",  (void*)gettimeofday},
+    {"gmtime",        (void*)gmtime},
+    {"localtime",     (void*)localtime},
+    {"mktime",        (void*)mktime},
+    {"strftime",      (void*)strftime},
+
+    // ── POSIX semaphores ─────────────────────────────────────────────────────
+    {"sem_init",    (void*)stub_sem_init},
+    {"sem_destroy", (void*)stub_sem_destroy},
+    {"sem_post",    (void*)stub_sem_post},
+    {"sem_wait",    (void*)stub_sem_wait},
+    {"sem_trywait", (void*)stub_sem_trywait},
+
+    // ── pthread_mutexattr ────────────────────────────────────────────────────
+    {"pthread_mutexattr_init",    (void*)pt_mattr_init},
+    {"pthread_mutexattr_destroy", (void*)pt_mattr_destroy},
+    {"pthread_mutexattr_settype", (void*)pt_mattr_settype},
+
+    // ── setjmp / longjmp (ARM64: real functions, not macros) ─────────────────
+    {"setjmp",  (void*)setjmp},
+    {"longjmp", (void*)longjmp},
+
+    // ── wide char (wchar.h / wctype.h) ───────────────────────────────────────
+    {"wcslen",    (void*)wcslen},
+    {"wcscpy",    (void*)wcscpy},
+    {"wcsncpy",   (void*)wcsncpy},
+    {"wcscat",    (void*)wcscat},
+    {"wcsncat",   (void*)wcsncat},
+    {"wcscmp",    (void*)wcscmp},
+    {"wcsncmp",   (void*)wcsncmp},
+    {"wcschr",    (void*)wcschr},
+    {"wcsrchr",   (void*)wcsrchr},
+    {"wcsstr",    (void*)wcsstr},
+    {"wcstol",    (void*)wcstol},
+    {"wcstoul",   (void*)wcstoul},
+    {"wcstoll",   (void*)wcstoll},
+    {"wcstoull",  (void*)wcstoull},
+    {"wcstod",    (void*)wcstod},
+    {"wcstof",    (void*)wcstof},
+    {"wcstold",   (void*)wcstold},
+    {"wcscoll",   (void*)wcscoll},
+    {"wcsxfrm",   (void*)wcsxfrm},
+    {"wcsrtombs", (void*)wcsrtombs},
+    {"mbsrtowcs", (void*)mbsrtowcs},
+    {"wcsnrtombs",(void*)stub_wcsnrtombs},
+    {"mbsnrtowcs",(void*)stub_mbsnrtowcs},
+    {"wcrtomb",   (void*)wcrtomb},
+    {"mbtowc",    (void*)mbtowc},
+    {"mbrtowc",   (void*)mbrtowc},
+    {"mbrlen",    (void*)mbrlen},
+    {"wctob",     (void*)wctob},
+    {"btowc",     (void*)btowc},
+    {"wmemcpy",   (void*)wmemcpy},
+    {"wmemmove",  (void*)wmemmove},
+    {"wmemset",   (void*)wmemset},
+    {"wmemcmp",   (void*)wmemcmp},
+    {"wmemchr",   (void*)wmemchr},
+    {"swprintf",  (void*)swprintf},
+    {"towupper",  (void*)towupper},
+    {"towlower",  (void*)towlower},
+    {"iswupper",  (void*)iswupper},
+    {"iswlower",  (void*)iswlower},
+    {"iswdigit",  (void*)iswdigit},
+    {"iswalpha",  (void*)iswalpha},
+    {"iswspace",  (void*)iswspace},
+    {"iswpunct",  (void*)iswpunct},
+    {"iswcntrl",  (void*)iswcntrl},
+    {"iswprint",  (void*)iswprint},
+    {"iswblank",  (void*)iswblank},
+    {"iswxdigit", (void*)iswxdigit},
+    {"iswgraph",  (void*)iswgraph},
+    {"iswascii",  (void*)+[](wint_t c) -> int { return (unsigned)c <= 127; }},
+
+    // ── locale ───────────────────────────────────────────────────────────────
+    {"setlocale",              (void*)setlocale},
+    {"localeconv",             (void*)localeconv},
+    {"newlocale",              (void*)stub_newlocale},
+    {"freelocale",             (void*)stub_freelocale},
+    {"uselocale",              (void*)stub_uselocale},
+    {"__ctype_get_mb_cur_max", (void*)stub_mb_cur_max},
+
+    // ── strtod locale variants ───────────────────────────────────────────────
+    {"strtoll_l",  (void*)stub_strtoll_l},
+    {"strtoull_l", (void*)stub_strtoull_l},
+    {"strtold_l",  (void*)stub_strtold_l},
+
+    // ── networking (all stubbed — no sockets without bsd service) ────────────
+    {"socket",       (void*)stub_socket},
+    {"bind",         (void*)stub_bind},
+    {"connect",      (void*)stub_connect},
+    {"listen",       (void*)stub_listen},
+    {"select",       (void*)stub_select},
+    {"recv",         (void*)stub_recv},
+    {"send",         (void*)stub_send},
+    {"getsockname",  (void*)stub_getsockname},
+    {"getsockopt",   (void*)stub_getsockopt},
+    {"gethostbyname",(void*)stub_gethostbyname},
+    {"__get_h_errno",(void*)stub_get_h_errno},
+
+    // ── scheduling / system ──────────────────────────────────────────────────
+    {"sched_yield",     (void*)stub_sched_yield},
+    {"sysconf",         (void*)stub_sysconf},
+    {"syscall",         (void*)stub_syscall},
+    {"dl_iterate_phdr", (void*)stub_dl_iterate_phdr},
+
+    // ── syslog ───────────────────────────────────────────────────────────────
+    {"openlog",  (void*)stub_openlog},
+    {"closelog", (void*)stub_closelog},
+    {"syslog",   (void*)stub_syslog},
+
+    // ── Android specifics ────────────────────────────────────────────────────
+    {"android_set_abort_message", (void*)stub_android_abort_msg},
+
+    // ── Bionic fortified string/IO wrappers ──────────────────────────────────
+    {"__strlen_chk",    (void*)chk_strlen},
+    {"__memcpy_chk",    (void*)chk_memcpy},
+    {"__memmove_chk",   (void*)chk_memmove},
+    {"__strcat_chk",    (void*)chk_strcat},
+    {"__strcpy_chk",    (void*)chk_strcpy},
+    {"__strncpy_chk2",  (void*)chk_strncpy},
+    {"__vsprintf_chk",  (void*)chk_vsprintf},
+    {"__vsnprintf_chk", (void*)chk_vsnprintf},
+    {"__read_chk",      (void*)chk_read},
+    {"__open_2",        (void*)chk_open2},
+
+    // ── sincosf ──────────────────────────────────────────────────────────────
+    {"sincosf", (void*)stub_sincosf},
+
+    // ── data symbols (address of variable, not value) ─────────────────────────
+    {"__stack_chk_guard", (void*)&__stack_chk_guard},
+    {"__sF",              (void*)g_fake_sF},
+
+    // ── C++ runtime extras ───────────────────────────────────────────────────
+    {"__cxa_finalize", (void*)+[](void*) {}},
 
     // sentinel
     {nullptr, nullptr}

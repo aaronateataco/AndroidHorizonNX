@@ -113,34 +113,31 @@ switch-mesa switch-glad
 
 These are the known issues preventing Hill Climb Racing from running:
 
-### 1. Code pages not executable (`svcSetMemoryPermission` → `0xD801`)
+### 1. ~~Code pages not executable~~ — **RESOLVED**
 
-When we load the game's `.so` with our custom ELF loader, we `memalign()` the memory and then call `svcSetMemoryPermission` to make the code segment executable (Rx). The kernel returns `0xD801` (module 1 / kernel, description 108 = `InvalidMemoryPermissions`).
+The ELF loader now uses libnx's `jitCreate` / `jitTransitionToExecutable` API instead of `memalign` + `svcSetMemoryPermission`. This creates a dual-view mapping (writable side for loading, executable side for running) that the Switch kernel allows. The old `0xD801` error no longer occurs.
 
-**Why:** On Switch, heap-allocated memory cannot be made executable via `svcSetMemoryPermission`. You must use JIT-capable memory APIs (`svcMapCodeMemory`, `svcSetMemoryPermission` on mapped-code regions, or libnx's `jit` helpers). This requires the NRO to have JIT permission in its NACP (or CFW-level permissions). **This is the primary blocker.**
+### 2. ~~Many unresolved symbols~~ — **RESOLVED (120+ symbols shimmed)**
 
-### 2. Many unresolved symbols
+All symbols that appeared in the Hill Climb Racing compat log are now shimmed:
 
-Hill Climb Racing's `libgame.so` requires approximately 120+ libc/POSIX symbols that we haven't shimmed yet, including:
-
-- `longjmp` / `setjmp` (C exception handling)
-- `sem_init`, `sem_wait`, `sem_post` (POSIX semaphores)
-- `clock_gettime`, `nanosleep`, `gettimeofday` (time)
-- Wide character functions: `wcslen`, `wcscpy`, `wmemcpy`, `iswupper`, etc.
-- Locale functions: `setlocale`, `newlocale`, `freelocale`, `uselocale`
-- Networking: `socket`, `connect`, `send`, `recv`, `bind`, `listen`, `select`
-- DNS: `gethostbyname`
-- Bionic-specific fortified wrappers: `__strlen_chk`, `__memcpy_chk`, `__strcat_chk`, etc.
-- `strftime`, `gmtime`, `localtime`, `mktime`
-- `pthread_mutexattr_init/destroy/settype`
-- `syscall`, `sched_yield`, `getcwd`
-- `android_set_abort_message`, `dl_iterate_phdr`
-
-These need to be added to `shim_table.cpp` one by one. Many will need real implementations (e.g. time functions), not just stubs.
+- `setjmp` / `longjmp` — forwarded to newlib
+- `sem_init`, `sem_wait`, `sem_post`, `sem_destroy` — single-threaded stubs
+- `clock_gettime`, `nanosleep`, `gettimeofday`, `gmtime`, `localtime`, `mktime`, `strftime` — newlib passthrough
+- All wide char/locale functions (`wcslen`, `wmemcpy`, `iswupper`, `setlocale`, `newlocale`, etc.)
+- Bionic fortified wrappers (`__strlen_chk`, `__memcpy_chk`, `__strcat_chk`, etc.)
+- Networking: `socket`, `connect`, `recv`, `send`, etc. — all stub returning `ENOTSUP`
+- `pthread_mutexattr_init/destroy/settype`, `sched_yield`, `syscall`, `getcwd`
+- `android_set_abort_message`, `dl_iterate_phdr`, `sincosf`, `__sF`, `__stack_chk_guard`
+- `strtoll_l`, `strtoull_l`, `strtold_l`, `vasprintf`, `stpcpy`, `strerror`, `vsscanf`
 
 ### 3. Background threads not supported
 
 `pthread_create` is stubbed to return a fake handle and never actually spawn a thread. Games that rely on a separate render or physics thread will appear frozen or crash.
+
+### 4. Game may crash at runtime
+
+Even with all symbols resolved and code executable, the game could crash during initialisation (NULL deref, bad GLES call, unimplemented JNI method, etc.). The next step is to get a crash address from the compat log and identify which code path is failing.
 
 ---
 
@@ -158,15 +155,12 @@ These need to be added to `shim_table.cpp` one by one. Many will need real imple
 - [x] On-screen progress display during launch stages
 - [x] Full diagnostic result screen with error details
 - [x] Docked mode detection — footer warns when not in handheld mode
-- [x] Early abort when `svcSetMemoryPermission` fails — shows diagnostic screen instead of crashing Switch
-- [ ] **Fix code-page permissions** — use JIT-capable memory allocation (libnx `jit` API or `svcMapCodeMemory`)
-- [ ] Add missing libc shims (see [Current Blockers](#current-blockers) above)
-- [ ] Stub `sem_init`/`sem_wait`/`sem_post`/`sem_destroy`
-- [ ] Stub `clock_gettime`, `nanosleep`, `gettimeofday`
-- [ ] Stub wide-char and locale functions
-- [ ] Stub Bionic fortified string wrappers (`__strlen_chk`, etc.)
-- [ ] Add `android_set_abort_message` shim (logs message then calls `abort`)
-- [ ] Stub networking (return errno `ENETDOWN` / `ECONNREFUSED` — we won't implement real networking for now)
+- [x] Early abort when code pages are not executable — shows diagnostic screen instead of crashing Switch
+- [x] **Fix code-page permissions** — ELF loader now uses libnx `jitCreate` / `jitTransitionToExecutable` for dual-view RW+Rx mapping
+- [x] All 120+ unresolved symbols shimmed — `sem_*`, `clock_gettime`, `nanosleep`, `gettimeofday`, wide-char, locale, Bionic fortified wrappers, networking stubs, `android_set_abort_message`, `sincosf`, `setjmp`/`longjmp`, `__sF`, `__stack_chk_guard`
+- [ ] **Get the game to produce any output** — next test will show whether it crashes at init or gets further
+- [ ] Investigate any new crash address from compat_log and identify the failing code path
+- [ ] Real touch input delivery via `AInputQueue` / `ALooper`
 
 ### Phase 1 — Touch input
 
@@ -203,6 +197,9 @@ These need to be added to `shim_table.cpp` one by one. Many will need real imple
 
 ### [Unreleased / Current Build]
 
+- [x] **ELF loader: replace `memalign` + `svcSetMemoryPermission` with libnx JIT API** — `jitCreate` / `jitTransitionToWritable` / `jitTransitionToExecutable` give a dual-view RW+Rx mapping; the 0xD801 blocker is resolved
+- [x] **JIT dual-mapping**: relocations are written to the writable (`rw_addr`) side; GOT entries store exec (`rx_addr`) addresses; symtab/strtab are copied to heap before the JIT transition unmaps the write side
+- [x] **120+ new shims**: `setjmp`/`longjmp`, `sem_*`, all time functions, all wide-char and locale functions, all Bionic fortified string wrappers, networking stubs (return `ENOTSUP`), `sched_yield`, `syscall`, `sysconf`, `getcwd`, `dl_iterate_phdr`, `android_set_abort_message`, `sincosf`, `stpcpy`, `vasprintf`, `vsscanf`, `strerror`, `strtold`, `puts`/`putchar`, `rename`/`remove`, `__sF` data stub, `__stack_chk_guard` address, `pthread_mutexattr_*`, `__cxa_finalize`
 - [x] Capture `svcSetMemoryPermission` result code from ELF loader and surface it on the diagnostic screen
 - [x] Abort launch early when code pages are not executable — shows diagnostic screen instead of hard-crashing the Switch
 - [x] Add "Checking code permissions" progress step so the user sees where the launch stopped

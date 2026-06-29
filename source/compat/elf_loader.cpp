@@ -53,25 +53,28 @@ static void* resolveSymbol(const char* name) {
 }
 
 // ─── RELA relocation processing ───────────────────────────────────────────────
-static void applyRela(LoadedSo* so, const Elf64_Rela* relas, size_t count) {
+// write_base: where to write relocation results (RW mapping)
+// exec_base:  address values to store in GOT entries (RX mapping)
+// These differ when using JIT dual-mapping; they're equal in the heap fallback.
+static void applyRela(LoadedSo* so, const Elf64_Rela* relas, size_t count,
+                      uint8_t* write_base, uint8_t* exec_base,
+                      uint8_t* write_alloc, size_t alloc_size) {
     for (size_t i = 0; i < count; i++) {
         const Elf64_Rela& r = relas[i];
         uint32_t sym_idx = ELF64_R_SYM(r.r_info);
         uint32_t type    = ELF64_R_TYPE(r.r_info);
 
-        // Bounds check the relocation target
         if (r.r_offset < so->min_vaddr) continue;
-        uint8_t* target_ptr = so->base + r.r_offset;
-        if (target_ptr < so->alloc || target_ptr + 8 > so->alloc + so->alloc_size)
+        uint8_t* target_ptr = write_base + r.r_offset;
+        if (target_ptr < write_alloc || target_ptr + 8 > write_alloc + alloc_size)
             continue;
         uint64_t* target = (uint64_t*)target_ptr;
 
         if (type == R_AARCH64_RELATIVE) {
-            *target = (uint64_t)so->base + (uint64_t)r.r_addend;
+            *target = (uint64_t)exec_base + (uint64_t)r.r_addend;
             continue;
         }
 
-        // Need a symbol for other relocation types
         if (!so->symtab || sym_idx == 0) continue;
         if (sym_idx >= so->sym_count) continue;
 
@@ -80,8 +83,8 @@ static void applyRela(LoadedSo* so, const Elf64_Rela* relas, size_t count) {
 
         uint64_t sym_addr = 0;
         if (sym.st_shndx != SHN_UNDEF && sym.st_value != 0) {
-            // Defined in this module
-            sym_addr = (uint64_t)so->base + sym.st_value;
+            // Defined in this module — return its exec-side address
+            sym_addr = (uint64_t)exec_base + sym.st_value;
         } else if (sym_name[0]) {
             sym_addr = (uint64_t)resolveSymbol(sym_name);
             if (!sym_addr) {
@@ -162,33 +165,53 @@ LoadedSo* elfLoad(const char* path) {
     }
 
     size_t alloc_size = (size_t)ALIGN_UP(max_vaddr - min_vaddr, 0x1000);
-    uint8_t* alloc = (uint8_t*)memalign(0x1000, alloc_size);
-    if (!alloc) {
-        free(file_data);
-        compatLog("ELF: memalign failed");
-        return nullptr;
+
+    // ── Allocate code memory via JIT API ─────────────────────────────────────
+    // jitCreate() uses svcMapCodeMemory internally, which creates a dual-view
+    // mapping: a writable (src_addr) side and an executable (dst_addr) side.
+    // This is necessary because heap memory (memalign) cannot be made Rx via
+    // svcSetMemoryPermission on Switch (returns 0xD801).
+    Jit    jit_mem   = {};
+    bool   using_jit = false;
+    uint8_t* write_alloc = nullptr;  // writable mapping (RW)
+    uint8_t* exec_alloc  = nullptr;  // executable mapping (Rx)
+
+    Result jit_rc = jitCreate(&jit_mem, alloc_size);
+    if (R_SUCCEEDED(jit_rc)) {
+        Result w_rc = jitTransitionToWritable(&jit_mem);
+        if (R_SUCCEEDED(w_rc)) {
+            using_jit   = true;
+            write_alloc = (uint8_t*)jit_mem.rw_addr;  // writable mapping
+            exec_alloc  = (uint8_t*)jit_mem.rx_addr;  // executable mapping
+            compatLogFmt("JIT: alloc OK write=%p exec=%p size=0x%zx",
+                         (void*)write_alloc, (void*)exec_alloc, alloc_size);
+        } else {
+            compatLogFmt("JIT: jitTransitionToWritable failed 0x%08X", w_rc);
+            jitClose(&jit_mem);
+        }
+    } else {
+        compatLogFmt("JIT: jitCreate failed 0x%08X — falling back to heap (not executable)", jit_rc);
     }
-    memset(alloc, 0, alloc_size);
 
-    // base + p_vaddr == pointer into our allocation
-    uint8_t* base = alloc - min_vaddr;
+    if (!using_jit) {
+        // Heap fallback: code won't be executable, but we can still log unresolved symbols.
+        write_alloc = exec_alloc = (uint8_t*)memalign(0x1000, alloc_size);
+        if (!write_alloc) { free(file_data); compatLog("ELF: memalign failed"); return nullptr; }
+    }
 
-    // Copy PT_LOAD segments
+    memset(write_alloc, 0, alloc_size);
+    uint8_t* write_base = write_alloc - min_vaddr;  // for writes
+    uint8_t* exec_base  = exec_alloc  - min_vaddr;  // for exec-side addresses stored in GOT
+
+    // ── Copy PT_LOAD segments into writable mapping ──────────────────────────
     for (int i = 0; i < ehdr->e_phnum; i++) {
         const Elf64_Phdr& ph = phdrs[i];
         if (ph.p_type != PT_LOAD || ph.p_filesz == 0) continue;
         if (ph.p_offset + ph.p_filesz > fsize) continue;
-        memcpy(base + ph.p_vaddr, file_data + ph.p_offset, ph.p_filesz);
+        memcpy(write_base + ph.p_vaddr, file_data + ph.p_offset, ph.p_filesz);
     }
 
-    LoadedSo* so = new LoadedSo();
-    so->alloc      = alloc;
-    so->alloc_size = alloc_size;
-    so->min_vaddr  = min_vaddr;
-    so->base       = base;
-    so->path       = path;
-
-    // Parse PT_DYNAMIC
+    // ── Parse PT_DYNAMIC from writable mapping ───────────────────────────────
     uint64_t strtab_vaddr = 0, symtab_vaddr = 0;
     uint64_t rela_vaddr = 0, rela_sz = 0;
     uint64_t jmprel_vaddr = 0, jmprel_sz = 0;
@@ -197,82 +220,110 @@ LoadedSo* elfLoad(const char* path) {
 
     for (int i = 0; i < ehdr->e_phnum; i++) {
         if (phdrs[i].p_type != PT_DYNAMIC) continue;
-        const Elf64_Dyn* dyn = (const Elf64_Dyn*)(base + phdrs[i].p_vaddr);
-
+        const Elf64_Dyn* dyn = (const Elf64_Dyn*)(write_base + phdrs[i].p_vaddr);
         for (; dyn->d_tag != DT_NULL; dyn++) {
             switch (dyn->d_tag) {
-                case DT_STRTAB:   strtab_vaddr  = dyn->d_un.d_ptr; break;
-                case DT_SYMTAB:   symtab_vaddr  = dyn->d_un.d_ptr; break;
-                case DT_RELA:     rela_vaddr    = dyn->d_un.d_ptr; break;
-                case DT_RELASZ:   rela_sz       = dyn->d_un.d_val; break;
-                case DT_JMPREL:   jmprel_vaddr  = dyn->d_un.d_ptr; break;
-                case DT_PLTRELSZ: jmprel_sz     = dyn->d_un.d_val; break;
-                case DT_STRSZ:    strsz         = dyn->d_un.d_val; break;
-                case DT_SYMENT:   syment        = dyn->d_un.d_val; break;
-                case DT_INIT_ARRAY:    init_arr_vaddr = dyn->d_un.d_ptr; break;
-                case DT_INIT_ARRAYSZ:  init_arr_sz    = dyn->d_un.d_val; break;
+                case DT_STRTAB:      strtab_vaddr   = dyn->d_un.d_ptr; break;
+                case DT_SYMTAB:      symtab_vaddr   = dyn->d_un.d_ptr; break;
+                case DT_RELA:        rela_vaddr     = dyn->d_un.d_ptr; break;
+                case DT_RELASZ:      rela_sz        = dyn->d_un.d_val; break;
+                case DT_JMPREL:      jmprel_vaddr   = dyn->d_un.d_ptr; break;
+                case DT_PLTRELSZ:    jmprel_sz      = dyn->d_un.d_val; break;
+                case DT_STRSZ:       strsz          = dyn->d_un.d_val; break;
+                case DT_SYMENT:      syment         = dyn->d_un.d_val; break;
+                case DT_INIT_ARRAY:  init_arr_vaddr = dyn->d_un.d_ptr; break;
+                case DT_INIT_ARRAYSZ:init_arr_sz    = dyn->d_un.d_val; break;
             }
         }
         break;
     }
 
-    if (strtab_vaddr) so->strtab = (const char*)(base + strtab_vaddr);
+    // ── Build LoadedSo, point strtab/symtab at writable side for now ─────────
+    LoadedSo* so = new LoadedSo();
+    so->using_jit  = using_jit;
+    so->jit_mem    = jit_mem;
+    so->alloc      = exec_alloc;
+    so->alloc_size = alloc_size;
+    so->min_vaddr  = min_vaddr;
+    so->base       = exec_base;   // exec-side base: base+vaddr = runtime address
+    so->path       = path;
+
+    uint32_t sym_count = 0;
+    if (strtab_vaddr) so->strtab = (const char*)(write_base + strtab_vaddr);
     if (symtab_vaddr && strtab_vaddr && syment) {
-        so->symtab = (Elf64_Sym*)(base + symtab_vaddr);
-        // Estimate count: symtab runs up to strtab, roughly
+        so->symtab = (Elf64_Sym*)(write_base + symtab_vaddr);
         if (strtab_vaddr > symtab_vaddr)
-            so->sym_count = (uint32_t)((strtab_vaddr - symtab_vaddr) / syment);
-        if (so->sym_count > 200000) so->sym_count = 200000;
+            sym_count = (uint32_t)((strtab_vaddr - symtab_vaddr) / syment);
+        if (sym_count > 200000) sym_count = 200000;
+        so->sym_count = sym_count;
     }
 
-    // Register this so now so cross-library resolution works during relocation
+    // Register now so cross-library resolution works during relocation
     g_loaded_sos.push_back(so);
 
-    // Apply relocations
+    // ── Apply relocations ────────────────────────────────────────────────────
+    // GOT entries receive exec-side addresses; writes go to the writable mapping.
     if (rela_vaddr && rela_sz && so->symtab) {
-        applyRela(so, (const Elf64_Rela*)(base + rela_vaddr),
-                  rela_sz / sizeof(Elf64_Rela));
+        applyRela(so, (const Elf64_Rela*)(write_base + rela_vaddr),
+                  rela_sz / sizeof(Elf64_Rela),
+                  write_base, exec_base, write_alloc, alloc_size);
     }
     if (jmprel_vaddr && jmprel_sz && so->symtab) {
-        applyRela(so, (const Elf64_Rela*)(base + jmprel_vaddr),
-                  jmprel_sz / sizeof(Elf64_Rela));
+        applyRela(so, (const Elf64_Rela*)(write_base + jmprel_vaddr),
+                  jmprel_sz / sizeof(Elf64_Rela),
+                  write_base, exec_base, write_alloc, alloc_size);
     }
 
-    // Set memory permissions per segment (need Rx for code pages)
-    for (int i = 0; i < ehdr->e_phnum; i++) {
-        const Elf64_Phdr& ph = phdrs[i];
-        if (ph.p_type != PT_LOAD) continue;
-
-        uint32_t perm = 0;
-        if (ph.p_flags & PF_R) perm |= Perm_R;
-        if (ph.p_flags & PF_W) perm |= Perm_W;
-        if (ph.p_flags & PF_X) perm |= Perm_X;
-
-        // Only call svc when we need something other than default Rw
-        if (!(ph.p_flags & PF_X)) continue;
-
-        uintptr_t seg_start = (uintptr_t)ALIGN_DOWN((uintptr_t)(base + ph.p_vaddr), 0x1000);
-        size_t    seg_size  = (size_t)ALIGN_UP(ph.p_memsz + (ph.p_vaddr - ALIGN_DOWN(ph.p_vaddr, 0x1000)), 0x1000);
-        Result res = svcSetMemoryPermission((void*)seg_start, seg_size, perm);
-        g_last_svc_perm_code = (uint32_t)res;
-        compatLogFmt("ELF: svcSetMemPerm code seg: 0x%08X", res);
+    // ── Copy strtab/symtab to heap before JIT transition unmaps the RW side ──
+    if (strtab_vaddr && strsz) {
+        so->strtab_heap = (char*)malloc(strsz + 1);
+        if (so->strtab_heap) {
+            memcpy(so->strtab_heap, write_base + strtab_vaddr, strsz);
+            so->strtab_heap[strsz] = '\0';
+            so->strtab = so->strtab_heap;
+        }
+    }
+    if (symtab_vaddr && sym_count && syment) {
+        size_t symtab_bytes = (size_t)sym_count * sizeof(Elf64_Sym);
+        so->symtab_heap = (Elf64_Sym*)malloc(symtab_bytes);
+        if (so->symtab_heap) {
+            memcpy(so->symtab_heap, write_base + symtab_vaddr, symtab_bytes);
+            so->symtab = so->symtab_heap;
+        }
     }
 
-    // Flush CPU instruction cache over the entire loaded region
-    __builtin___clear_cache((char*)alloc, (char*)alloc + alloc_size);
+    // ── Transition to executable ─────────────────────────────────────────────
+    if (using_jit) {
+        Result exec_rc = jitTransitionToExecutable(&jit_mem);
+        so->jit_mem = jit_mem;
+        g_last_svc_perm_code = (uint32_t)exec_rc;
+        if (R_FAILED(exec_rc)) {
+            compatLogFmt("JIT: jitTransitionToExecutable failed: 0x%08X", exec_rc);
+        } else {
+            compatLog("JIT: code memory is now executable");
+        }
+    } else {
+        g_last_svc_perm_code = 0xD801;  // heap fallback — report blocker code
+    }
 
-    // Run DT_INIT_ARRAY constructors
-    if (init_arr_vaddr && init_arr_sz) {
+    // Flush CPU instruction cache over exec region
+    __builtin___clear_cache((char*)exec_alloc, (char*)exec_alloc + alloc_size);
+
+    // ── Run DT_INIT_ARRAY constructors ───────────────────────────────────────
+    // Only run if code is actually executable (JIT succeeded).
+    if (init_arr_vaddr && init_arr_sz && using_jit && g_last_svc_perm_code == 0) {
         typedef void(*InitFn)();
-        InitFn* arr = (InitFn*)(base + init_arr_vaddr);
+        InitFn* arr = (InitFn*)(exec_base + init_arr_vaddr);
         size_t count = init_arr_sz / sizeof(InitFn);
+        compatLogFmt("ELF: running %zu DT_INIT_ARRAY constructors", count);
         for (size_t k = 0; k < count; k++) {
-            if (arr[k] && arr[k] != (InitFn)-1)
+            if (arr[k] && arr[k] != (InitFn)(uintptr_t)-1)
                 arr[k]();
         }
     }
 
     free(file_data);
-    compatLogFmt("ELF: loaded OK, base=%p sym_count=%u", (void*)base, so->sym_count);
+    compatLogFmt("ELF: loaded OK exec_base=%p sym_count=%u unresolved=%d",
+                 (void*)exec_base, so->sym_count, g_unresolved_count);
     return so;
 }

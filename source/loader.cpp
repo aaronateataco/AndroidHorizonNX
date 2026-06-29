@@ -267,18 +267,17 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
     }
 
     // ── 5b. Verify code pages are executable ────────────────────────────────
-    // svcSetMemoryPermission returns 0xD801 on heap memory — calling into the
-    // game at this point would cause an immediate Switch fatal error (data abort
-    // from jumping into non-executable memory).  Bail out here and let the
-    // diagnostic screen explain the blocker instead of hard-crashing.
-    if (cb) cb("Checking code permissions", "Verifying game code is executable...");
+    // JIT API (jitCreate/jitTransitionToExecutable) must have succeeded.
+    // If it failed, svcPermCode is non-zero and calling the game would cause
+    // a data-abort on non-executable memory — bail out here instead.
+    if (cb) cb("Checking code permissions", "Verifying JIT code mapping...");
     if (result.svcPermCode != 0) {
-        compatLogFmt("Aborting launch — svcSetMemoryPermission failed (0x%08X). "
-                     "Calling into the game would cause a Switch crash.",
+        compatLogFmt("Aborting launch — JIT code mapping failed (0x%08X). "
+                     "Calling into the game would cause a Switch fatal error.",
                      result.svcPermCode);
         result.errorStage  = "Setting code pages executable";
-        result.errorDetail = "svcSetMemoryPermission 0xD801 — heap memory cannot be made Rx. "
-                             "JIT API (svcMapCodeMemory) required. See Current Blockers in README.";
+        result.errorDetail = "JIT allocation failed — code segment is not executable. "
+                             "Check that Atmosphere CFW is active and has JIT permission.";
         if (g_compat_log) { fclose(g_compat_log); g_compat_log = nullptr; }
         return result;
     }

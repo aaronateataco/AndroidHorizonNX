@@ -1,357 +1,360 @@
-elf_loader.o: /project/source/compat/elf_loader.cpp \
- /project/include/compat/loader.h /project/include/compat/android.h \
- /opt/devkitpro/portlibs/switch/include/EGL/egl.h \
- /opt/devkitpro/portlibs/switch/include/EGL/eglplatform.h \
- /opt/devkitpro/portlibs/switch/include/KHR/khrplatform.h \
- /project/include/compat/jni.h /opt/devkitpro/libnx/include/switch.h \
- /opt/devkitpro/libnx/include/switch/types.h \
- /opt/devkitpro/libnx/include/switch/result.h \
- /opt/devkitpro/libnx/include/switch/nro.h \
- /opt/devkitpro/libnx/include/switch/nacp.h \
- /opt/devkitpro/libnx/include/switch/arm/tls.h \
- /opt/devkitpro/libnx/include/switch/arm/cache.h \
- /opt/devkitpro/libnx/include/switch/arm/counter.h \
- /opt/devkitpro/libnx/include/switch/kernel/svc.h \
- /opt/devkitpro/libnx/include/switch/kernel/../arm/thread_context.h \
- /opt/devkitpro/libnx/include/switch/kernel/wait.h \
- /opt/devkitpro/libnx/include/switch/kernel/mutex.h \
- /opt/devkitpro/libnx/include/switch/kernel/tmem.h \
- /opt/devkitpro/libnx/include/switch/kernel/shmem.h \
- /opt/devkitpro/libnx/include/switch/kernel/event.h \
- /opt/devkitpro/libnx/include/switch/kernel/levent.h \
- /opt/devkitpro/libnx/include/switch/kernel/uevent.h \
- /opt/devkitpro/libnx/include/switch/kernel/utimer.h \
- /opt/devkitpro/libnx/include/switch/kernel/rwlock.h \
- /opt/devkitpro/libnx/include/switch/kernel/../kernel/condvar.h \
- /opt/devkitpro/libnx/include/switch/kernel/thread.h \
- /opt/devkitpro/libnx/include/switch/kernel/semaphore.h \
- /opt/devkitpro/libnx/include/switch/kernel/virtmem.h \
- /opt/devkitpro/libnx/include/switch/kernel/detect.h \
- /opt/devkitpro/libnx/include/switch/kernel/random.h \
- /opt/devkitpro/libnx/include/switch/kernel/jit.h \
- /opt/devkitpro/libnx/include/switch/kernel/barrier.h \
- /opt/devkitpro/libnx/include/switch/sf/hipc.h \
- /opt/devkitpro/libnx/include/switch/sf/cmif.h \
- /opt/devkitpro/libnx/include/switch/sf/service.h \
- /opt/devkitpro/libnx/include/switch/sf/sessionmgr.h \
- /opt/devkitpro/libnx/include/switch/sf/tipc.h \
- /opt/devkitpro/libnx/include/switch/services/sm.h \
- /opt/devkitpro/libnx/include/switch/services/smm.h \
- /opt/devkitpro/libnx/include/switch/services/fs.h \
- /opt/devkitpro/libnx/include/switch/services/../services/ncm_types.h \
- /opt/devkitpro/libnx/include/switch/services/../services/../crypto/sha256.h \
- /opt/devkitpro/libnx/include/switch/services/../services/acc.h \
- /opt/devkitpro/libnx/include/switch/services/fsldr.h \
- /opt/devkitpro/libnx/include/switch/services/fspr.h \
- /opt/devkitpro/libnx/include/switch/services/apm.h \
- /opt/devkitpro/libnx/include/switch/services/applet.h \
- /opt/devkitpro/libnx/include/switch/services/../services/pdm.h \
- /opt/devkitpro/libnx/include/switch/services/../services/caps.h \
- /opt/devkitpro/libnx/include/switch/services/../services/pm.h \
- /opt/devkitpro/libnx/include/switch/services/../services/set.h \
- /opt/devkitpro/libnx/include/switch/services/../services/../services/time.h \
- /opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_types.h \
- /opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_ids.h \
- /opt/devkitpro/libnx/include/switch/services/../services/../services/btm_types.h \
- /opt/devkitpro/libnx/include/switch/services/async.h \
- /opt/devkitpro/libnx/include/switch/services/../applets/error.h \
- /opt/devkitpro/libnx/include/switch/services/aud.h \
- /opt/devkitpro/libnx/include/switch/services/audctl.h \
- /opt/devkitpro/libnx/include/switch/services/../audio/audio.h \
- /opt/devkitpro/libnx/include/switch/services/audin.h \
- /opt/devkitpro/libnx/include/switch/services/audout.h \
- /opt/devkitpro/libnx/include/switch/services/audrec.h \
- /opt/devkitpro/libnx/include/switch/services/audren.h \
- /opt/devkitpro/libnx/include/switch/services/auddev.h \
- /opt/devkitpro/libnx/include/switch/services/hwopus.h \
- /opt/devkitpro/libnx/include/switch/services/csrng.h \
- /opt/devkitpro/libnx/include/switch/services/lbl.h \
- /opt/devkitpro/libnx/include/switch/services/i2c.h \
- /opt/devkitpro/libnx/include/switch/services/gpio.h \
- /opt/devkitpro/libnx/include/switch/services/uart.h \
- /opt/devkitpro/libnx/include/switch/services/bpc.h \
- /opt/devkitpro/libnx/include/switch/services/pcv.h \
- /opt/devkitpro/libnx/include/switch/services/clkrst.h \
- /opt/devkitpro/libnx/include/switch/services/fan.h \
- /opt/devkitpro/libnx/include/switch/services/pgl.h \
- /opt/devkitpro/libnx/include/switch/services/psm.h \
- /opt/devkitpro/libnx/include/switch/services/spsm.h \
- /opt/devkitpro/libnx/include/switch/services/fatal.h \
- /opt/devkitpro/libnx/include/switch/services/usb.h \
- /opt/devkitpro/libnx/include/switch/services/usbds.h \
- /opt/devkitpro/libnx/include/switch/services/usbhs.h \
- /opt/devkitpro/libnx/include/switch/services/hid.h \
- /opt/devkitpro/libnx/include/switch/services/hidbus.h \
- /opt/devkitpro/libnx/include/switch/services/hiddbg.h \
- /opt/devkitpro/libnx/include/switch/services/../services/hidsys.h \
- /opt/devkitpro/libnx/include/switch/services/irs.h \
- /opt/devkitpro/libnx/include/switch/services/pl.h \
- /opt/devkitpro/libnx/include/switch/services/vi.h \
- /opt/devkitpro/libnx/include/switch/services/nv.h \
- /opt/devkitpro/libnx/include/switch/services/nifm.h \
- /opt/devkitpro/libnx/include/switch/services/nim.h \
- /opt/devkitpro/libnx/include/switch/services/ns.h \
- /opt/devkitpro/libnx/include/switch/services/ldr.h \
- /opt/devkitpro/libnx/include/switch/services/ro.h \
- /opt/devkitpro/libnx/include/switch/services/tc.h \
- /opt/devkitpro/libnx/include/switch/services/ts.h \
- /opt/devkitpro/libnx/include/switch/services/ssl.h \
- /opt/devkitpro/libnx/include/switch/services/lr.h \
- /opt/devkitpro/libnx/include/switch/services/bt.h \
- /opt/devkitpro/libnx/include/switch/services/../services/btdrv.h \
- /opt/devkitpro/libnx/include/switch/services/btm.h \
- /opt/devkitpro/libnx/include/switch/services/btmu.h \
- /opt/devkitpro/libnx/include/switch/services/btmsys.h \
- /opt/devkitpro/libnx/include/switch/services/spl.h \
- /opt/devkitpro/libnx/include/switch/services/ncm.h \
- /opt/devkitpro/libnx/include/switch/services/psc.h \
- /opt/devkitpro/libnx/include/switch/services/capsa.h \
- /opt/devkitpro/libnx/include/switch/services/capsc.h \
- /opt/devkitpro/libnx/include/switch/services/capsdc.h \
- /opt/devkitpro/libnx/include/switch/services/capsu.h \
- /opt/devkitpro/libnx/include/switch/services/capssc.h \
- /opt/devkitpro/libnx/include/switch/services/capssu.h \
- /opt/devkitpro/libnx/include/switch/services/capmtp.h \
- /opt/devkitpro/libnx/include/switch/services/nfc.h \
- /opt/devkitpro/libnx/include/switch/services/../services/mii.h \
- /opt/devkitpro/libnx/include/switch/services/wlaninf.h \
- /opt/devkitpro/libnx/include/switch/services/pctl.h \
- /opt/devkitpro/libnx/include/switch/services/grc.h \
- /opt/devkitpro/libnx/include/switch/services/../display/native_window.h \
- /opt/devkitpro/libnx/include/switch/services/../display/../nvidia/graphic_buffer.h \
- /opt/devkitpro/libnx/include/switch/services/../display/../nvidia/../display/types.h \
- /opt/devkitpro/libnx/include/switch/services/../display/../nvidia/types.h \
- /opt/devkitpro/libnx/include/switch/services/../display/binder.h \
- /opt/devkitpro/libnx/include/switch/services/../display/buffer_producer.h \
- /opt/devkitpro/libnx/include/switch/services/../display/../nvidia/fence.h \
- /opt/devkitpro/libnx/include/switch/services/../display/../nvidia/ioctl.h \
- /opt/devkitpro/libnx/include/switch/services/friends.h \
- /opt/devkitpro/libnx/include/switch/services/notif.h \
- /opt/devkitpro/libnx/include/switch/services/miiimg.h \
- /opt/devkitpro/libnx/include/switch/services/ldn.h \
- /opt/devkitpro/libnx/include/switch/services/lp2p.h \
- /opt/devkitpro/libnx/include/switch/services/news.h \
- /opt/devkitpro/libnx/include/switch/services/ins.h \
- /opt/devkitpro/libnx/include/switch/services/ectx.h \
- /opt/devkitpro/libnx/include/switch/services/avm.h \
- /opt/devkitpro/libnx/include/switch/services/mm.h \
- /opt/devkitpro/libnx/include/switch/display/parcel.h \
- /opt/devkitpro/libnx/include/switch/display/framebuffer.h \
- /opt/devkitpro/libnx/include/switch/display/../nvidia/map.h \
- /opt/devkitpro/libnx/include/switch/nvidia/address_space.h \
- /opt/devkitpro/libnx/include/switch/nvidia/channel.h \
- /opt/devkitpro/libnx/include/switch/nvidia/gpu.h \
- /opt/devkitpro/libnx/include/switch/nvidia/gpu_channel.h \
- /opt/devkitpro/libnx/include/switch/audio/driver.h \
- /opt/devkitpro/libnx/include/switch/applets/libapplet.h \
- /opt/devkitpro/libnx/include/switch/applets/album_la.h \
- /opt/devkitpro/libnx/include/switch/applets/friends_la.h \
- /opt/devkitpro/libnx/include/switch/applets/hid_la.h \
- /opt/devkitpro/libnx/include/switch/applets/mii_la.h \
- /opt/devkitpro/libnx/include/switch/applets/nfp_la.h \
- /opt/devkitpro/libnx/include/switch/applets/nifm_la.h \
- /opt/devkitpro/libnx/include/switch/applets/pctlauth.h \
- /opt/devkitpro/libnx/include/switch/applets/psel.h \
- /opt/devkitpro/libnx/include/switch/applets/swkbd.h \
- /opt/devkitpro/libnx/include/switch/applets/web.h \
- /opt/devkitpro/libnx/include/switch/runtime/env.h \
- /opt/devkitpro/libnx/include/switch/runtime/hosversion.h \
- /opt/devkitpro/libnx/include/switch/runtime/diag.h \
- /opt/devkitpro/libnx/include/switch/runtime/nxlink.h \
- /opt/devkitpro/libnx/include/switch/runtime/resolver.h \
- /opt/devkitpro/libnx/include/switch/runtime/pad.h \
- /opt/devkitpro/libnx/include/switch/runtime/ringcon.h \
- /opt/devkitpro/libnx/include/switch/runtime/btdev.h \
- /opt/devkitpro/libnx/include/switch/runtime/util/utf.h \
- /opt/devkitpro/libnx/include/switch/runtime/devices/console.h \
- /opt/devkitpro/libnx/include/switch/runtime/devices/usb_comms.h \
- /opt/devkitpro/libnx/include/switch/runtime/devices/fs_dev.h \
- /opt/devkitpro/libnx/include/switch/runtime/devices/romfs_dev.h \
- /opt/devkitpro/libnx/include/switch/runtime/devices/socket.h \
- /opt/devkitpro/libnx/include/switch/crypto/aes.h \
- /opt/devkitpro/libnx/include/switch/crypto/aes_cbc.h \
- /opt/devkitpro/libnx/include/switch/crypto/aes_ctr.h \
- /opt/devkitpro/libnx/include/switch/crypto/aes_xts.h \
- /opt/devkitpro/libnx/include/switch/crypto/cmac.h \
- /opt/devkitpro/libnx/include/switch/crypto/sha1.h \
- /opt/devkitpro/libnx/include/switch/crypto/hmac.h \
- /opt/devkitpro/libnx/include/switch/crypto/crc.h
-/project/include/compat/loader.h:
-/project/include/compat/android.h:
-/opt/devkitpro/portlibs/switch/include/EGL/egl.h:
-/opt/devkitpro/portlibs/switch/include/EGL/eglplatform.h:
-/opt/devkitpro/portlibs/switch/include/KHR/khrplatform.h:
-/project/include/compat/jni.h:
-/opt/devkitpro/libnx/include/switch.h:
-/opt/devkitpro/libnx/include/switch/types.h:
-/opt/devkitpro/libnx/include/switch/result.h:
-/opt/devkitpro/libnx/include/switch/nro.h:
-/opt/devkitpro/libnx/include/switch/nacp.h:
-/opt/devkitpro/libnx/include/switch/arm/tls.h:
-/opt/devkitpro/libnx/include/switch/arm/cache.h:
-/opt/devkitpro/libnx/include/switch/arm/counter.h:
-/opt/devkitpro/libnx/include/switch/kernel/svc.h:
-/opt/devkitpro/libnx/include/switch/kernel/../arm/thread_context.h:
-/opt/devkitpro/libnx/include/switch/kernel/wait.h:
-/opt/devkitpro/libnx/include/switch/kernel/mutex.h:
-/opt/devkitpro/libnx/include/switch/kernel/tmem.h:
-/opt/devkitpro/libnx/include/switch/kernel/shmem.h:
-/opt/devkitpro/libnx/include/switch/kernel/event.h:
-/opt/devkitpro/libnx/include/switch/kernel/levent.h:
-/opt/devkitpro/libnx/include/switch/kernel/uevent.h:
-/opt/devkitpro/libnx/include/switch/kernel/utimer.h:
-/opt/devkitpro/libnx/include/switch/kernel/rwlock.h:
-/opt/devkitpro/libnx/include/switch/kernel/../kernel/condvar.h:
-/opt/devkitpro/libnx/include/switch/kernel/thread.h:
-/opt/devkitpro/libnx/include/switch/kernel/semaphore.h:
-/opt/devkitpro/libnx/include/switch/kernel/virtmem.h:
-/opt/devkitpro/libnx/include/switch/kernel/detect.h:
-/opt/devkitpro/libnx/include/switch/kernel/random.h:
-/opt/devkitpro/libnx/include/switch/kernel/jit.h:
-/opt/devkitpro/libnx/include/switch/kernel/barrier.h:
-/opt/devkitpro/libnx/include/switch/sf/hipc.h:
-/opt/devkitpro/libnx/include/switch/sf/cmif.h:
-/opt/devkitpro/libnx/include/switch/sf/service.h:
-/opt/devkitpro/libnx/include/switch/sf/sessionmgr.h:
-/opt/devkitpro/libnx/include/switch/sf/tipc.h:
-/opt/devkitpro/libnx/include/switch/services/sm.h:
-/opt/devkitpro/libnx/include/switch/services/smm.h:
-/opt/devkitpro/libnx/include/switch/services/fs.h:
-/opt/devkitpro/libnx/include/switch/services/../services/ncm_types.h:
-/opt/devkitpro/libnx/include/switch/services/../services/../crypto/sha256.h:
-/opt/devkitpro/libnx/include/switch/services/../services/acc.h:
-/opt/devkitpro/libnx/include/switch/services/fsldr.h:
-/opt/devkitpro/libnx/include/switch/services/fspr.h:
-/opt/devkitpro/libnx/include/switch/services/apm.h:
-/opt/devkitpro/libnx/include/switch/services/applet.h:
-/opt/devkitpro/libnx/include/switch/services/../services/pdm.h:
-/opt/devkitpro/libnx/include/switch/services/../services/caps.h:
-/opt/devkitpro/libnx/include/switch/services/../services/pm.h:
-/opt/devkitpro/libnx/include/switch/services/../services/set.h:
-/opt/devkitpro/libnx/include/switch/services/../services/../services/time.h:
-/opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_types.h:
-/opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_ids.h:
-/opt/devkitpro/libnx/include/switch/services/../services/../services/btm_types.h:
-/opt/devkitpro/libnx/include/switch/services/async.h:
-/opt/devkitpro/libnx/include/switch/services/../applets/error.h:
-/opt/devkitpro/libnx/include/switch/services/aud.h:
-/opt/devkitpro/libnx/include/switch/services/audctl.h:
-/opt/devkitpro/libnx/include/switch/services/../audio/audio.h:
-/opt/devkitpro/libnx/include/switch/services/audin.h:
-/opt/devkitpro/libnx/include/switch/services/audout.h:
-/opt/devkitpro/libnx/include/switch/services/audrec.h:
-/opt/devkitpro/libnx/include/switch/services/audren.h:
-/opt/devkitpro/libnx/include/switch/services/auddev.h:
-/opt/devkitpro/libnx/include/switch/services/hwopus.h:
-/opt/devkitpro/libnx/include/switch/services/csrng.h:
-/opt/devkitpro/libnx/include/switch/services/lbl.h:
-/opt/devkitpro/libnx/include/switch/services/i2c.h:
-/opt/devkitpro/libnx/include/switch/services/gpio.h:
-/opt/devkitpro/libnx/include/switch/services/uart.h:
-/opt/devkitpro/libnx/include/switch/services/bpc.h:
-/opt/devkitpro/libnx/include/switch/services/pcv.h:
-/opt/devkitpro/libnx/include/switch/services/clkrst.h:
-/opt/devkitpro/libnx/include/switch/services/fan.h:
-/opt/devkitpro/libnx/include/switch/services/pgl.h:
-/opt/devkitpro/libnx/include/switch/services/psm.h:
-/opt/devkitpro/libnx/include/switch/services/spsm.h:
-/opt/devkitpro/libnx/include/switch/services/fatal.h:
-/opt/devkitpro/libnx/include/switch/services/usb.h:
-/opt/devkitpro/libnx/include/switch/services/usbds.h:
-/opt/devkitpro/libnx/include/switch/services/usbhs.h:
-/opt/devkitpro/libnx/include/switch/services/hid.h:
-/opt/devkitpro/libnx/include/switch/services/hidbus.h:
-/opt/devkitpro/libnx/include/switch/services/hiddbg.h:
-/opt/devkitpro/libnx/include/switch/services/../services/hidsys.h:
-/opt/devkitpro/libnx/include/switch/services/irs.h:
-/opt/devkitpro/libnx/include/switch/services/pl.h:
-/opt/devkitpro/libnx/include/switch/services/vi.h:
-/opt/devkitpro/libnx/include/switch/services/nv.h:
-/opt/devkitpro/libnx/include/switch/services/nifm.h:
-/opt/devkitpro/libnx/include/switch/services/nim.h:
-/opt/devkitpro/libnx/include/switch/services/ns.h:
-/opt/devkitpro/libnx/include/switch/services/ldr.h:
-/opt/devkitpro/libnx/include/switch/services/ro.h:
-/opt/devkitpro/libnx/include/switch/services/tc.h:
-/opt/devkitpro/libnx/include/switch/services/ts.h:
-/opt/devkitpro/libnx/include/switch/services/ssl.h:
-/opt/devkitpro/libnx/include/switch/services/lr.h:
-/opt/devkitpro/libnx/include/switch/services/bt.h:
-/opt/devkitpro/libnx/include/switch/services/../services/btdrv.h:
-/opt/devkitpro/libnx/include/switch/services/btm.h:
-/opt/devkitpro/libnx/include/switch/services/btmu.h:
-/opt/devkitpro/libnx/include/switch/services/btmsys.h:
-/opt/devkitpro/libnx/include/switch/services/spl.h:
-/opt/devkitpro/libnx/include/switch/services/ncm.h:
-/opt/devkitpro/libnx/include/switch/services/psc.h:
-/opt/devkitpro/libnx/include/switch/services/capsa.h:
-/opt/devkitpro/libnx/include/switch/services/capsc.h:
-/opt/devkitpro/libnx/include/switch/services/capsdc.h:
-/opt/devkitpro/libnx/include/switch/services/capsu.h:
-/opt/devkitpro/libnx/include/switch/services/capssc.h:
-/opt/devkitpro/libnx/include/switch/services/capssu.h:
-/opt/devkitpro/libnx/include/switch/services/capmtp.h:
-/opt/devkitpro/libnx/include/switch/services/nfc.h:
-/opt/devkitpro/libnx/include/switch/services/../services/mii.h:
-/opt/devkitpro/libnx/include/switch/services/wlaninf.h:
-/opt/devkitpro/libnx/include/switch/services/pctl.h:
-/opt/devkitpro/libnx/include/switch/services/grc.h:
-/opt/devkitpro/libnx/include/switch/services/../display/native_window.h:
-/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/graphic_buffer.h:
-/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/../display/types.h:
-/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/types.h:
-/opt/devkitpro/libnx/include/switch/services/../display/binder.h:
-/opt/devkitpro/libnx/include/switch/services/../display/buffer_producer.h:
-/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/fence.h:
-/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/ioctl.h:
-/opt/devkitpro/libnx/include/switch/services/friends.h:
-/opt/devkitpro/libnx/include/switch/services/notif.h:
-/opt/devkitpro/libnx/include/switch/services/miiimg.h:
-/opt/devkitpro/libnx/include/switch/services/ldn.h:
-/opt/devkitpro/libnx/include/switch/services/lp2p.h:
-/opt/devkitpro/libnx/include/switch/services/news.h:
-/opt/devkitpro/libnx/include/switch/services/ins.h:
-/opt/devkitpro/libnx/include/switch/services/ectx.h:
-/opt/devkitpro/libnx/include/switch/services/avm.h:
-/opt/devkitpro/libnx/include/switch/services/mm.h:
-/opt/devkitpro/libnx/include/switch/display/parcel.h:
-/opt/devkitpro/libnx/include/switch/display/framebuffer.h:
-/opt/devkitpro/libnx/include/switch/display/../nvidia/map.h:
-/opt/devkitpro/libnx/include/switch/nvidia/address_space.h:
-/opt/devkitpro/libnx/include/switch/nvidia/channel.h:
-/opt/devkitpro/libnx/include/switch/nvidia/gpu.h:
-/opt/devkitpro/libnx/include/switch/nvidia/gpu_channel.h:
-/opt/devkitpro/libnx/include/switch/audio/driver.h:
-/opt/devkitpro/libnx/include/switch/applets/libapplet.h:
-/opt/devkitpro/libnx/include/switch/applets/album_la.h:
-/opt/devkitpro/libnx/include/switch/applets/friends_la.h:
-/opt/devkitpro/libnx/include/switch/applets/hid_la.h:
-/opt/devkitpro/libnx/include/switch/applets/mii_la.h:
-/opt/devkitpro/libnx/include/switch/applets/nfp_la.h:
-/opt/devkitpro/libnx/include/switch/applets/nifm_la.h:
-/opt/devkitpro/libnx/include/switch/applets/pctlauth.h:
-/opt/devkitpro/libnx/include/switch/applets/psel.h:
-/opt/devkitpro/libnx/include/switch/applets/swkbd.h:
-/opt/devkitpro/libnx/include/switch/applets/web.h:
-/opt/devkitpro/libnx/include/switch/runtime/env.h:
-/opt/devkitpro/libnx/include/switch/runtime/hosversion.h:
-/opt/devkitpro/libnx/include/switch/runtime/diag.h:
-/opt/devkitpro/libnx/include/switch/runtime/nxlink.h:
-/opt/devkitpro/libnx/include/switch/runtime/resolver.h:
-/opt/devkitpro/libnx/include/switch/runtime/pad.h:
-/opt/devkitpro/libnx/include/switch/runtime/ringcon.h:
-/opt/devkitpro/libnx/include/switch/runtime/btdev.h:
-/opt/devkitpro/libnx/include/switch/runtime/util/utf.h:
-/opt/devkitpro/libnx/include/switch/runtime/devices/console.h:
-/opt/devkitpro/libnx/include/switch/runtime/devices/usb_comms.h:
-/opt/devkitpro/libnx/include/switch/runtime/devices/fs_dev.h:
-/opt/devkitpro/libnx/include/switch/runtime/devices/romfs_dev.h:
-/opt/devkitpro/libnx/include/switch/runtime/devices/socket.h:
-/opt/devkitpro/libnx/include/switch/crypto/aes.h:
-/opt/devkitpro/libnx/include/switch/crypto/aes_cbc.h:
-/opt/devkitpro/libnx/include/switch/crypto/aes_ctr.h:
-/opt/devkitpro/libnx/include/switch/crypto/aes_xts.h:
-/opt/devkitpro/libnx/include/switch/crypto/cmac.h:
-/opt/devkitpro/libnx/include/switch/crypto/sha1.h:
-/opt/devkitpro/libnx/include/switch/crypto/hmac.h:
-/opt/devkitpro/libnx/include/switch/crypto/crc.h:
+elf_loader.o: \
+ /home/aaron/Documents/Github/BareDroidNX/source/compat/elf_loader.cpp \
+ /home/aaron/Documents/Github/BareDroidNX/include/compat/loader.h \
+ /home/aaron/Documents/Github/BareDroidNX/include/compat/android.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/EGL/egl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/EGL/eglplatform.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/KHR/khrplatform.h \
+ /home/aaron/Documents/Github/BareDroidNX/include/compat/jni.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/types.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/result.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nro.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nacp.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/arm/tls.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/arm/cache.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/arm/counter.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/svc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/../arm/thread_context.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/wait.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/mutex.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/tmem.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/shmem.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/event.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/levent.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/uevent.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/utimer.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/rwlock.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/../kernel/condvar.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/thread.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/semaphore.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/virtmem.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/detect.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/random.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/jit.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/barrier.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/hipc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/cmif.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/service.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/sessionmgr.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/tipc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/sm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/smm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fs.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/ncm_types.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../crypto/sha256.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/acc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fsldr.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fspr.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/apm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/applet.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/pdm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/caps.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/pm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/set.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/time.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_types.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_ids.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/btm_types.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/async.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../applets/error.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/aud.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audctl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../audio/audio.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audin.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audout.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audrec.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audren.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/auddev.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hwopus.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/csrng.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/lbl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/i2c.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/gpio.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/uart.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/bpc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pcv.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/clkrst.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fan.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pgl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/psm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/spsm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fatal.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/usb.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/usbds.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/usbhs.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hid.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hidbus.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hiddbg.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/hidsys.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/irs.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/vi.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nv.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nifm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nim.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ns.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ldr.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ro.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/tc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ts.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ssl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/lr.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/bt.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/btdrv.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/btm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/btmu.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/btmsys.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/spl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ncm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/psc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsa.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsdc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsu.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capssc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capssu.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capmtp.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nfc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/mii.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/wlaninf.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pctl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/grc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/native_window.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/graphic_buffer.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/../display/types.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/types.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/binder.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/buffer_producer.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/fence.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/ioctl.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/friends.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/notif.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/miiimg.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ldn.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/lp2p.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/news.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ins.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ectx.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/avm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/mm.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/display/parcel.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/display/framebuffer.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/display/../nvidia/map.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/address_space.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/channel.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/gpu.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/gpu_channel.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/audio/driver.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/libapplet.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/album_la.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/friends_la.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/hid_la.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/mii_la.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/nfp_la.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/nifm_la.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/pctlauth.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/psel.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/swkbd.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/web.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/env.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/hosversion.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/diag.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/nxlink.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/resolver.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/pad.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/ringcon.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/btdev.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/util/utf.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/console.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/usb_comms.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/fs_dev.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/romfs_dev.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/socket.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes_cbc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes_ctr.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes_xts.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/cmac.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/sha1.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/hmac.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/crc.h
+/home/aaron/Documents/Github/BareDroidNX/include/compat/loader.h:
+/home/aaron/Documents/Github/BareDroidNX/include/compat/android.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/EGL/egl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/EGL/eglplatform.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/KHR/khrplatform.h:
+/home/aaron/Documents/Github/BareDroidNX/include/compat/jni.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/types.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/result.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nro.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nacp.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/arm/tls.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/arm/cache.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/arm/counter.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/svc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/../arm/thread_context.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/wait.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/mutex.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/tmem.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/shmem.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/event.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/levent.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/uevent.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/utimer.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/rwlock.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/../kernel/condvar.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/thread.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/semaphore.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/virtmem.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/detect.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/random.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/jit.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/kernel/barrier.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/hipc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/cmif.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/service.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/sessionmgr.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/sf/tipc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/sm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/smm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fs.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/ncm_types.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../crypto/sha256.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/acc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fsldr.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fspr.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/apm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/applet.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/pdm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/caps.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/pm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/set.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/time.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_types.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/btdrv_ids.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/../services/btm_types.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/async.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../applets/error.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/aud.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audctl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../audio/audio.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audin.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audout.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audrec.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/audren.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/auddev.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hwopus.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/csrng.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/lbl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/i2c.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/gpio.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/uart.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/bpc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pcv.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/clkrst.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fan.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pgl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/psm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/spsm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/fatal.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/usb.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/usbds.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/usbhs.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hid.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hidbus.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/hiddbg.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/hidsys.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/irs.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/vi.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nv.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nifm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nim.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ns.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ldr.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ro.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/tc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ts.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ssl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/lr.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/bt.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/btdrv.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/btm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/btmu.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/btmsys.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/spl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ncm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/psc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsa.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsdc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capsu.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capssc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capssu.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/capmtp.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/nfc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../services/mii.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/wlaninf.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/pctl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/grc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/native_window.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/graphic_buffer.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/../display/types.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/types.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/binder.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/buffer_producer.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/fence.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/../display/../nvidia/ioctl.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/friends.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/notif.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/miiimg.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ldn.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/lp2p.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/news.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ins.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/ectx.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/avm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/services/mm.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/display/parcel.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/display/framebuffer.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/display/../nvidia/map.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/address_space.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/channel.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/gpu.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/nvidia/gpu_channel.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/audio/driver.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/libapplet.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/album_la.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/friends_la.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/hid_la.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/mii_la.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/nfp_la.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/nifm_la.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/pctlauth.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/psel.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/swkbd.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/applets/web.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/env.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/hosversion.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/diag.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/nxlink.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/resolver.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/pad.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/ringcon.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/btdev.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/util/utf.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/console.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/usb_comms.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/fs_dev.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/romfs_dev.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/runtime/devices/socket.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes_cbc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes_ctr.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/aes_xts.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/cmac.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/sha1.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/hmac.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/crc.h:

@@ -393,15 +393,15 @@ struct App {
                 drawText(fSm, buf, C_WARN, 60, y);  y += 28;
             }
 
-            // svc memory permission failure (0xD801 = kernel won't allow Rx on heap)
+            // JIT allocation failure
             if (res.svcPermCode != 0) {
                 char buf[128];
                 snprintf(buf, sizeof(buf),
-                         "svcSetMemPerm: 0x%08X — code pages not executable (JIT blocked)",
+                         "JIT alloc: 0x%08X — code segment not executable",
                          res.svcPermCode);
                 drawText(fSm, buf, C_ERR, 60, y);  y += 28;
                 drawText(fSm,
-                         "Heap memory cannot be made Rx on Switch. JIT-capable alloc needed.",
+                         "jitCreate/jitTransitionToExecutable failed. Needs Atmosphere CFW.",
                          C_GRAY, 60, y);  y += 28;
             }
 

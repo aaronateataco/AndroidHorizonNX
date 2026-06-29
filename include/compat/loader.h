@@ -87,10 +87,18 @@ typedef struct {
 // ─── LoadedSo ─────────────────────────────────────────────────────────────────
 // One loaded ARM64 .so
 struct LoadedSo {
-    uint8_t*     alloc;       // memalign'd base
+    Jit          jit_mem;     // JIT memory handle (valid when using_jit is true)
+    bool         using_jit = false;
+
+    uint8_t*     alloc;       // exec (RX) allocation base pointer
     size_t       alloc_size;
     uint64_t     min_vaddr;   // first PT_LOAD p_vaddr
-    uint8_t*     base;        // alloc - min_vaddr  (so base + vaddr = memory ptr)
+    uint8_t*     base;        // alloc - min_vaddr (exec side; base+vaddr = runtime ptr)
+
+    // Heap copies of strtab/symtab so they survive jitTransitionToExecutable
+    // (the JIT RW mapping is unmapped after the transition)
+    char*        strtab_heap = nullptr;
+    Elf64_Sym*   symtab_heap = nullptr;
 
     const char*  strtab;
     Elf64_Sym*   symtab;
@@ -98,7 +106,7 @@ struct LoadedSo {
 
     std::string  path;        // path on SD card
 
-    // Find a symbol by name; returns runtime ptr or nullptr
+    // Find a symbol by name; returns runtime (exec) ptr or nullptr
     void* findSym(const char* name) const;
 };
 
