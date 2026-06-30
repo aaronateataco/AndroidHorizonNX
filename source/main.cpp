@@ -152,6 +152,7 @@ struct App {
         mkdir("sdmc:/BareDroidNX", 0777);
         logOpen();
         logMsg("BareDroidNX starting");
+        socketInitializeDefault();
 
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) != 0) {
             logSDL("SDL_Init failed"); logClose(); return false;
@@ -203,6 +204,7 @@ struct App {
         if (joy)  SDL_JoystickClose(joy);
         if (rdr)  SDL_DestroyRenderer(rdr);
         if (win)  SDL_DestroyWindow(win);
+        socketExit();
         romfsExit(); plExit();
         TTF_Quit(); IMG_Quit(); SDL_Quit();
         logMsg("cleanup done");

@@ -12,6 +12,7 @@
 // Log helpers — declared before the exception handler so it can use them.
 extern void compatLog(const char* msg);
 extern void compatLogFmt(const char* fmt, ...);
+extern void compatLogFlush();
 extern void compatUiLog(const char* msg);
 extern void compatUiSetPct(int pct);
 
@@ -112,6 +113,7 @@ void elfRunCtors(LoadedSo* so, ProgressCb cb) {
         if (!fn || fn == (LoadedSo::InitFn)(uintptr_t)-1) { skipped++; continue; }
 
         compatLogFmt("ELF: ctor[%zu/%zu] @%p", k+1, n, (void*)fn);
+        compatLogFlush();
         g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0;
         if (setjmp(g_recover_jmp) == 0) {
             fn();
@@ -722,6 +724,7 @@ LoadedSo* elfLoad(const char* path, ProgressCb cb) {
         }
     }
     compatLog("ELF: strtab/symtab copied");
+    compatLogFlush();
 
     // ── Post-relocation: remap phantom data pointers → data_exec ─────────────
     // Relocations above used exec_base = code_exec − min_vaddr, so any
@@ -745,6 +748,7 @@ LoadedSo* elfLoad(const char* path, ProgressCb cb) {
         compatLogFmt("data-ptr remap: %d entries (phantom=0x%llx..0x%llx → data_rx=%p)",
                      remapped, (unsigned long long)ph_start,
                      (unsigned long long)ph_end, (void*)data_exec);
+        compatLogFlush();
 
         // ── ADRP patch: redirect code→data ADRP instructions ─────────────
         // ADRP instructions in the code segment will compute addresses in the
@@ -781,7 +785,8 @@ LoadedSo* elfLoad(const char* path, ProgressCb cb) {
         }
     }
     free(stage);
-    compatLog("ELF: stage freed");
+    compatLog("ELF: JIT copy done, stage freed");
+    compatLogFlush();
 
     // ── Make code executable ─────────────────────────────────────────────────
     uint32_t this_svc_perm_code = 0;

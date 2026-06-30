@@ -123,7 +123,7 @@ All 403 JMPREL entries in the crash reporter library resolve successfully. The t
 
 ### 3. Native constructors — **ACTIVE INVESTIGATION**
 
-After JMPREL, 417 C++ constructors across all three loaded libraries need to run. The screen appears frozen during this phase because constructors are opaque native code — they don't call our progress callback. The launcher now runs the loader on a background thread so the UI stays live, and tails `compat_log.txt` in real time so you can see exactly what's happening. We need a clean test run showing whether `ELF: ctors done ok=417 failed=0` or a crash report.
+After JMPREL, 417 C++ constructors in `libgame.so` need to run. The launcher now logs each constructor address immediately before calling it and force-flushes to disk, so if one hangs you can see exactly which one in `compat_log.txt` (look for the last `ELF: ctor[k/417] @0x...` line with no matching `OK` or `FAULT` after it). We need a clean run showing `ELF: ctors done ok=N failed=N` to know where we stand.
 
 ### 4. Background threads not supported
 
@@ -213,6 +213,10 @@ This section gets replaced with real measured numbers once the game boots far en
 
 - [x] **Renamed to Android Horizon** — reflects the project's purpose (Android on HorizonOS) more clearly
 - [x] **Live animated progress screen** — loader now runs on a background libnx thread; main thread renders at ~60fps with: animated scan bar (always moving, independent of load progress), live tail of `compat_log.txt` (13 lines, colour-coded for errors/warnings), elapsed time display per stage, "still working" notice after 30s
+- [x] **Log timestamps** — every `compat_log.txt` entry prefixed with `[Xs]` seconds-since-launch
+- [x] **Immediate constructor logging** — each `ELF: ctor[k/417] @ptr` is force-flushed to disk and the live display the instant before the constructor runs, so a hanging constructor is immediately identifiable
+- [x] **"Please wait" patience notice** — log and screen show total constructor count and estimated time before the phase begins
+- [x] **Avatar fix** — `socketInitializeDefault()` added so curl/BSD sockets work in homebrew; GitHub URL corrected to FascinatingPistachio
 - [x] **Expanded log ring buffer** (5×92 → 20×128 bytes) for richer in-memory log feed
 - [x] **All 403 JMPREL entries resolve** — hardware-confirmed; constructors are now the active frontier
 - [x] **Android Horizon icon** — green planet with "ANDROID HORIZON" curved above the horizon, space background with stars

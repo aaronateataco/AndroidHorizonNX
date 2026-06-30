@@ -66,6 +66,12 @@ static void logFlushDedup() {
     g_log_repeat = 0;
 }
 
+// Force the current pending log message to disk and detail buffer immediately,
+// without waiting for the next different message to trigger the dedup flush.
+void compatLogFlush() {
+    logFlushDedup();
+}
+
 void compatLog(const char* msg) {
     if (g_log_repeat > 0 && strcmp(msg, g_log_last) == 0) {
         g_log_repeat++;
@@ -437,7 +443,16 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
 
     // ── 5c. Run constructors for all SOs (dependency order, smallest first) ──
     compatUiSetPct(58);
-    if (cb) cb("Running constructors", "Initialising native library globals...");
+    {
+        int total_ctors = 0;
+        for (LoadedSo* lso : loaded) total_ctors += (int)lso->init_arr_count;
+        compatLogFmt("CTORS: starting %d constructors — this may take 30-120s, please wait", total_ctors);
+        compatLogFlush();
+        char cb_msg[96];
+        snprintf(cb_msg, sizeof(cb_msg), "%d constructors — may take 30-120s, please wait...", total_ctors);
+        compatUiLog(cb_msg);
+        if (cb) cb("Running constructors", cb_msg);
+    }
     for (LoadedSo* lso : loaded) {
         elfRunCtors(lso, cb);
     }
