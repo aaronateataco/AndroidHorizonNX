@@ -64,8 +64,8 @@ void compatLogFmt(const char* fmt, ...) {
 
 // ─── UI ring buffer ───────────────────────────────────────────────────────────
 // Last UILOG_N short messages, shown as a rolling sub-step log in showProgress.
-#define UILOG_N  5
-#define UILOG_W  92
+#define UILOG_N  20
+#define UILOG_W  128
 char g_ui_log[UILOG_N][UILOG_W] = {};
 int  g_ui_head = 0;   // next write index (not wrapped)
 int  g_ui_pct  = 0;   // progress bar percentage 0-100
@@ -362,12 +362,19 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
         if (cb) cb("Loading ELF library", soName);
         compatLogFmt("Loading: %s", soName);
         LoadedSo* loaded_so = elfLoad(so_path.c_str(), cb);
+        // Advance the progress bar now that elfLoad returned, so the screen
+        // moves past the last RELA/JMPREL update and shows clear completion.
+        {
+            int pct2 = 18 + (so_total > 0 ? 40 * (so_idx + 1) / so_total : 40);
+            compatUiSetPct(pct2 < 58 ? pct2 : 57);
+        }
         if (loaded_so) {
             loaded.push_back(loaded_so);
             if (so_path == main_so) so = loaded_so;
             char ub[80];
             snprintf(ub, sizeof(ub), "Loaded %s OK", soName);
             compatUiLog(ub);
+            if (cb) cb("ELF loaded", soName);
         } else {
             compatLogFmt("WARN: failed to load %s — skipping", soName);
             char ub[80];

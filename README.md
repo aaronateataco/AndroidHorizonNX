@@ -2,7 +2,7 @@
 
 <img src="https://aaronworld.uk/avatar.png" width="88" height="88" style="border-radius:50%" alt="Aaron's avatar" />
 
-# BareDroidNX
+# Android Horizon
 
 **Run Android games natively on Nintendo Switch Horizon OS — without Android**
 
@@ -28,7 +28,7 @@
 
 ## What Is This?
 
-BareDroidNX is a **compatibility / translation layer** that lets Android native (NDK) games run directly on the Nintendo Switch's **Horizon OS** — the Switch's real operating system.
+Android Horizon is a **compatibility / translation layer** that lets Android native (NDK) games run directly on the Nintendo Switch's **Horizon OS** — the Switch's real operating system.
 
 **This is NOT Android running on the Switch.** There is no Android OS, no emulator, no virtual machine. The game's ARM64 machine code runs directly on the Switch's Tegra X1 processor, the same chip Android phones use. A thin shim layer fakes just enough of the Android runtime (libc, OpenGL ES, JNI, asset management) that the game's native `.so` library doesn't notice it isn't on Android.
 
@@ -44,35 +44,35 @@ We are currently only attempting **simple, old, 2D Android games** — specifica
 - Save locally (no cloud saves required)
 - **Do not require network/online connectivity**
 
-We are **not** planning support for online-only games (such as Roblox, Fortnite, etc.) anytime soon — if ever. The project is focused on proving that even the simplest games can run, which is still a significant technical challenge.
-
 Our test target is **Hill Climb Racing 1.x** by Fingersoft — a simple 2D physics game with no online requirement, widely used in compatibility testing.
 
 ### What We've Achieved So Far
 
 - The NRO launches from hbmenu and shows a working APK browser UI
 - The Switch correctly **extracts the APK** — unpacking the game's native libraries and assets from the `.apk` file onto the SD card. This works reliably.
-- The Switch loads and parses the ELF binary (`libgame.so`) and attempts to link it against our shim table
-- The on-screen progress display shows each launch stage in real time
+- The Switch loads and parses all three ELF binaries (`libapplovin-native-crash-reporter.so`, `libquack.so`, `libgame.so`) and links them against our shim table
+- **All 403 JMPREL entries resolve successfully** — confirmed in the latest test log
+- The on-screen progress display shows a **live feed of `compat_log.txt`** in real time, with an animated scan bar so the screen never looks frozen even during long silent phases (e.g. running 417 native constructors)
 - **Docked mode is detected** — the footer warns you when launched in docked mode, since games require touch screen input (handheld only)
-- The launcher **no longer crashes the Switch** when `svcSetMemoryPermission` fails — instead it shows a clear diagnostic screen explaining the blocker
 - Full diagnostic output is written to `sdmc:/BareDroidNX/compat_log.txt`
 
-The game does not yet run — there are outstanding blockers (see [Current Blockers](#current-blockers)) — but the groundwork is there.
+The current frontier is **native constructors**: after JMPREL completes, 417 C++ constructors in `libgame.so` need to run before the game can start. We are working to determine if they succeed or where they stall.
 
 ---
 
 ## Controls
 
-> **Handheld mode only.** Android games use touch screen input. The Switch touchscreen only works in handheld mode — in docked mode there is no touch input, so games will be uncontrollable. BareDroidNX now detects docked mode and shows a warning in the footer.
+> **Handheld mode only.** Android games use touch screen input. The Switch touchscreen only works in handheld mode — in docked mode there is no touch input, so games will be uncontrollable. Android Horizon detects docked mode and shows a warning in the footer.
 
-**BareDroidNX launcher controls (in the APK browser):**
+**Android Horizon launcher controls (in the APK browser):**
 
 | Button | Action |
 |--------|--------|
 | D-pad / Left stick | Navigate APK list |
 | **A** | Launch selected APK |
+| **X** | Reinstall + Launch (re-extracts APK) |
 | **Y** | Rescan APK folder |
+| **−** | About screen |
 | **+** | Quit |
 | **B** | Back (on result screen) |
 
@@ -104,7 +104,7 @@ Output: `BareDroidNX.nro`
 ```
 switch-sdl2 switch-sdl2_image switch-sdl2_ttf
 switch-libpng switch-libjpeg-turbo switch-minizip
-switch-mesa switch-glad
+switch-mesa switch-glad switch-curl switch-mbedtls
 ```
 
 ---
@@ -115,27 +115,21 @@ These are the known issues preventing Hill Climb Racing from running:
 
 ### 1. ~~Code pages not executable~~ — **RESOLVED**
 
-The ELF loader now uses libnx's `jitCreate` / `jitTransitionToExecutable` API instead of `memalign` + `svcSetMemoryPermission`. This creates a dual-view mapping (writable side for loading, executable side for running) that the Switch kernel allows. The old `0xD801` error no longer occurs.
+The ELF loader now uses the SplitMap technique: two `svcCreateCodeMemory` handles placed at adjacent virtual addresses. The code segment is mapped `MapSlave` (Rx) and the data segment `MapOwner` (Rw). ARM64 ADRP instructions can address ±4GB, so adjacent placement lets executed code reach GOT/data without any permission transitions. The old `0xD801` error no longer occurs.
 
-### 2. ~~Many unresolved symbols~~ — **RESOLVED (120+ symbols shimmed)**
+### 2. ~~JMPREL unresolved~~ — **RESOLVED (all 403 entries)**
 
-All symbols that appeared in the Hill Climb Racing compat log are now shimmed:
+All 403 JMPREL entries in the crash reporter library resolve successfully. The test log confirms `JMPREL: all 403 entries processed` and `ELF: jmprel done`.
 
-- `setjmp` / `longjmp` — forwarded to newlib
-- `sem_init`, `sem_wait`, `sem_post`, `sem_destroy` — single-threaded stubs
-- `clock_gettime`, `nanosleep`, `gettimeofday`, `gmtime`, `localtime`, `mktime`, `strftime` — newlib passthrough
-- All wide char/locale functions (`wcslen`, `wmemcpy`, `iswupper`, `setlocale`, `newlocale`, etc.)
-- Bionic fortified wrappers (`__strlen_chk`, `__memcpy_chk`, `__strcat_chk`, etc.)
-- Networking: `socket`, `connect`, `recv`, `send`, etc. — all stub returning `ENOTSUP`
-- `pthread_mutexattr_init/destroy/settype`, `sched_yield`, `syscall`, `getcwd`
-- `android_set_abort_message`, `dl_iterate_phdr`, `sincosf`, `__sF`, `__stack_chk_guard`
-- `strtoll_l`, `strtoull_l`, `strtold_l`, `vasprintf`, `stpcpy`, `strerror`, `vsscanf`
+### 3. Native constructors — **ACTIVE INVESTIGATION**
 
-### 3. Background threads not supported
+After JMPREL, 417 C++ constructors across all three loaded libraries need to run. The screen appears frozen during this phase because constructors are opaque native code — they don't call our progress callback. The launcher now runs the loader on a background thread so the UI stays live, and tails `compat_log.txt` in real time so you can see exactly what's happening. We need a clean test run showing whether `ELF: ctors done ok=417 failed=0` or a crash report.
+
+### 4. Background threads not supported
 
 `pthread_create` is stubbed to return a fake handle and never actually spawn a thread. Games that rely on a separate render or physics thread will appear frozen or crash.
 
-### 4. Game may crash at runtime
+### 5. Game may crash at runtime
 
 Even with all symbols resolved and code executable, the game could crash during initialisation (NULL deref, bad GLES call, unimplemented JNI method, etc.). The next step is to get a crash address from the compat log and identify which code path is failing.
 
@@ -143,15 +137,13 @@ Even with all symbols resolved and code executable, the game could crash during 
 
 ## Performance Expectations (Hill Climb Racing 1.67.0)
 
-We're testing the `.apk` release of **Hill Climb Racing 1.67.0** specifically — the current Play Store release ships as a `.xapk` (a zip-of-zips wrapper some third-party distributors use for split/expansion APKs). BareDroidNX's APK parser only understands plain `.apk` (zip) files right now, so `.xapk` support is out of scope until a later phase. Pinning to 1.67.0 keeps testing on a format we can actually ingest.
+We're testing the `.apk` release of **Hill Climb Racing 1.67.0** specifically — the current Play Store release ships as a `.xapk`. BareDroidNX's APK parser only understands plain `.apk` files right now, so `.xapk` support is out of scope until a later phase.
 
 There's no measured frame rate yet — the game hasn't booted far enough to render a single frame. Here's the theoretical ceiling based on the hardware alone:
 
-- Hill Climb Racing is a simple 2D vector-style physics game, originally tuned to hit 60 FPS on 2012-era phones with GPUs far weaker than the Switch's (Adreno 200/203, Mali-400MP class hardware).
-- The Switch's Tegra X1 (4× Cortex-A57 @ ~1020 MHz in handheld mode, Maxwell-based GPU) has roughly an order of magnitude more compute than HCR's original minimum-spec target. Raw rendering throughput should not be the bottleneck.
-- **Theoretical ceiling: a locked 60 FPS** — the same cap the game's own engine uses on Android — assuming it boots and renders at all.
-- The real risk to frame rate isn't the silicon, it's BareDroidNX's compat layer: `pthread_create` is currently stubbed (no real background thread), so any physics/render thread split the game relies on will serialize onto one thread; GLES calls are translated through switch-mesa rather than a native Android GPU driver, adding some per-draw-call overhead.
-- Docked vs handheld GPU clocks differ a lot on Switch, but it's moot here — the game requires touchscreen input, which only works in handheld mode, so handheld is the only mode worth benchmarking once it runs.
+- Hill Climb Racing is a simple 2D physics game, originally tuned for 60 FPS on 2012-era phones with GPUs far weaker than the Switch's Tegra X1.
+- **Theoretical ceiling: a locked 60 FPS** — assuming it boots and renders at all.
+- The real risk to frame rate is the compat layer: `pthread_create` is stubbed (no real background thread), so any physics/render thread split will serialize onto one thread; GLES calls are translated through switch-mesa rather than a native Android GPU driver.
 
 This section gets replaced with real measured numbers once the game boots far enough to render a frame.
 
@@ -172,41 +164,38 @@ This section gets replaced with real measured numbers once the game boots far en
 - [x] Full diagnostic result screen with error details
 - [x] Docked mode detection — footer warns when not in handheld mode
 - [x] Early abort when code pages are not executable — shows diagnostic screen instead of crashing Switch
-- [x] **Fix code-page permissions** — ELF loader now uses libnx `jitCreate` / `jitTransitionToExecutable` for dual-view RW+Rx mapping
-- [x] All 120+ unresolved symbols shimmed — `sem_*`, `clock_gettime`, `nanosleep`, `gettimeofday`, wide-char, locale, Bionic fortified wrappers, networking stubs, `android_set_abort_message`, `sincosf`, `setjmp`/`longjmp`, `__sF`, `__stack_chk_guard`
-- [x] **Per-constructor logging** — each of the 417 `DT_INIT_ARRAY` constructors is logged (address + index) with an immediate flush before it's called, so the crash site shows in `compat_log.txt` when the Switch dies mid-constructor
-- [x] **Load all .so files** — all three libs loaded smallest-first so cross-library symbols are available before any constructors run
-- [x] **40+ new shims** — signal handling (`sigaction`, `sigemptyset/fill/add/del`, `pthread_sigmask`), thread naming (`pthread_setname_np`, `prctl`), process info (`gettid`, `getpid`, `getauxval`), memory (`mprotect`, `mmap/munmap`), barriers, `sleep`/`usleep`, `strtod_l`/`strtof_l`, `access`, `lstat`, `chmod`, `ioctl`, `pipe`, `dup/dup2`, `raise`, `kill`, `pthread_kill`, `__register_atfork`, `clock_nanosleep`
-- [x] **Heap staging buffer for ELF loading** — segment copy, relocation, and dynamic parsing now happen on a plain heap buffer; only a single bulk `memcpy` touches JIT-writable memory, right before `jitTransitionToExecutable`. This fixed a hard crash on the very first write to JIT memory.
-- [x] **Per-relocation-entry logging + bounds checks in `applyRela`** — every RELA/JMPREL entry now logs its index, type, symbol index, and resolved name before being applied; `sym.st_name` is now bounds-checked against `DT_STRSZ` before being dereferenced as a string (the gap-derived `sym_count` heuristic can overrun into `.gnu.version` data sitting between `.dynsym` and `.dynstr`, producing garbage string pointers — this is the leading suspect for the current crash). `R_AARCH64_COPY` sizes are now capped at 64KB to guard against a bogus `st_size`. PT_LOAD segment copies and the `PT_DYNAMIC` pointer are now bounds-checked against the staging buffer too.
-- [ ] **Identify relocation crash** — need a new compat_log run; the last logged `RELA[n/3060]`/`JMPREL[n/...]` entry before the crash is the culprit
+- [x] **SplitMap JIT** — adjacent RW+Rx dual-mapping via two `svcCreateCodeMemory` handles; 0xD801 blocker resolved
+- [x] All 120+ unresolved symbols shimmed
+- [x] **Per-constructor logging** — crash site shows in `compat_log.txt`
+- [x] **Load all .so files** — all three libs loaded smallest-first; cross-library symbols available before constructors run
+- [x] **40+ additional shims** — signal handling, thread naming, memory, barriers, etc.
+- [x] **Live progress screen** — loader runs on a background thread; main thread renders at ~60fps with animated scan bar and live `compat_log.txt` tail (13 lines, colour-coded)
+- [x] **Elapsed time per stage** — stage label shows "(Xs)" so you can tell how long each step is taking
+- [x] **All 403 JMPREL entries resolved** — confirmed in hardware test
+- [ ] Identify whether constructors complete or stall — need a clean run showing `ELF: ctors done`
 - [ ] Real touch input delivery via `AInputQueue` / `ALooper`
 
 ### Phase 1 — Touch input
 
 - [ ] Map Switch touchscreen events to `AInputQueue` touch events delivered to the game
 - [x] Docked-mode detection — footer shows warning when not in handheld mode
-- [ ] Block launch in docked mode with a hard block + clear message ("Controls only work in handheld mode — the game requires touch input")
 
 ### Phase 2 — Stability
 
 - [ ] Real `pthread` support using libnx `Thread` (for games with background render/physics threads)
-- [x] Load all `.so` files in dependency order (smallest-first) — was previously only loading the largest
+- [x] Load all `.so` files in dependency order (smallest-first)
 - [ ] Implement `dl_iterate_phdr` so stack unwinders work
 - [ ] Save/load state via proper `internalDataPath` on the SD card
-- [ ] Catch and display fatal signal info on crash instead of hard-locking
 
 ### Phase 3 — Polish
 
-- [ ] Add NRO icon (author: aaronworld.uk)
+- [x] NRO icon (Android Horizon themed — green planet with curved text)
+- [x] Dynamic GitHub avatar on About screen
+- [x] About screen (press **−**)
+- [x] Reinstall button (**X** in APK list)
 - [ ] Version bump system — each build increments `APP_VERSION`
 - [ ] Per-APK settings overlay (resolution, framerate cap)
 - [ ] APK delete / manage from the UI
-- [x] WebP icon decoding (`IMG_INIT_WEBP`) + WebP fallback candidates — many modern app icons ship as WebP, not PNG
-- [x] Linear texture scaling (`SDL_HINT_RENDER_SCALE_QUALITY`) for smoother icon downscaling
-- [x] Colored monogram placeholder (Android-style initial + hashed color) replaces the flat gray box when no icon is found
-- [x] Larger APK list icons (72px → 84px) and result-screen icon (96px → 112px)
-- [x] APK file size shown in the list (e.g. "42.1 MB")
 
 ### Not Planned (for now)
 
@@ -216,32 +205,36 @@ This section gets replaced with real measured numbers once the game boots far en
 
 ---
 
-## Changelog / Change Checklist
+## Changelog
 
-> This section is updated with every significant change. Most recent first.
+> Most recent first.
 
-### [Unreleased / Current Build]
+### [Current Build]
 
-- [x] **Performance Expectations section** — theoretical 60 FPS ceiling for Hill Climb Racing 1.67.0 based on Tegra X1 vs. the game's original minimum-spec hardware, plus the `.apk` vs `.xapk` note explaining why we test 1.67.0 instead of the latest release
-- [x] **APK chooser QoL**: WebP icon decoding, linear icon scaling, colored monogram placeholders for missing icons, larger icons, file size shown per APK
-- [x] **Heap staging buffer for ELF loading** — fixed a hard crash on the first write to JIT-writable memory by doing all segment copy / relocation / dynamic parsing on a heap buffer, then a single bulk `memcpy` into JIT memory right before `jitTransitionToExecutable`
-- [x] **Per-relocation-entry logging + bounds checks** in `applyRela()` — logs every RELA/JMPREL entry's index/type/symbol before applying it, bounds-checks `sym.st_name` against `DT_STRSZ` (guards against the gap-derived `sym_count` overrunning into `.gnu.version` data), and caps `R_AARCH64_COPY` size at 64KB
-- [x] **Per-constructor logging** — `elfRunCtors()` logs each constructor address + index and flushes to `compat_log.txt` before calling it; the last logged entry before a Switch crash pinpoints the culprit
-- [x] **Load all .so files** — replaced `findMainSo` with `findAllSos`; all three libs are loaded smallest-first so cross-library symbol resolution works before any constructors run
-- [x] **40+ new shims** — `sigaction`, `sigemptyset`, `sigfillset`, `sigaddset`, `sigdelset`, `sigismember`, `pthread_sigmask`, `sigprocmask`, `prctl`, `gettid`, `getpid`, `getuid`, `getgid`, `getauxval`, `mprotect`, `mmap`, `munmap`, `pipe`, `dup`, `dup2`, `ioctl`, `access`, `chmod`, `fchmod`, `lstat`, `pthread_setname_np`, `pthread_getname_np`, `pthread_attr_setstack`, `pthread_barrier_*`, `kill`, `raise`, `pthread_kill`, `sleep`, `usleep`, `clock_nanosleep`, `strtod_l`, `strtof_l`, `__register_atfork`
-- [x] **ELF loader: replace `memalign` + `svcSetMemoryPermission` with libnx JIT API** — `jitCreate` / `jitTransitionToWritable` / `jitTransitionToExecutable` give a dual-view RW+Rx mapping; the 0xD801 blocker is resolved
-- [x] **JIT dual-mapping**: relocations are written to the writable (`rw_addr`) side; GOT entries store exec (`rx_addr`) addresses; symtab/strtab are copied to heap before the JIT transition unmaps the write side
-- [x] **120+ new shims**: `setjmp`/`longjmp`, `sem_*`, all time functions, all wide-char and locale functions, all Bionic fortified string wrappers, networking stubs (return `ENOTSUP`), `sched_yield`, `syscall`, `sysconf`, `getcwd`, `dl_iterate_phdr`, `android_set_abort_message`, `sincosf`, `stpcpy`, `vasprintf`, `vsscanf`, `strerror`, `strtold`, `puts`/`putchar`, `rename`/`remove`, `__sF` data stub, `__stack_chk_guard` address, `pthread_mutexattr_*`, `__cxa_finalize`
-- [x] Capture `svcSetMemoryPermission` result code from ELF loader and surface it on the diagnostic screen
-- [x] Abort launch early when code pages are not executable — shows diagnostic screen instead of hard-crashing the Switch
-- [x] Add "Checking code permissions" progress step so the user sees where the launch stopped
-- [x] Docked mode detection — footer turns amber and warns that games need handheld (touch screen) mode
-- [x] Add `LaunchResult` struct — `launchApk()` now returns structured error info instead of a bare bool
+- [x] **Renamed to Android Horizon** — reflects the project's purpose (Android on HorizonOS) more clearly
+- [x] **Live animated progress screen** — loader now runs on a background libnx thread; main thread renders at ~60fps with: animated scan bar (always moving, independent of load progress), live tail of `compat_log.txt` (13 lines, colour-coded for errors/warnings), elapsed time display per stage, "still working" notice after 30s
+- [x] **Expanded log ring buffer** (5×92 → 20×128 bytes) for richer in-memory log feed
+- [x] **All 403 JMPREL entries resolve** — hardware-confirmed; constructors are now the active frontier
+- [x] **Android Horizon icon** — green planet with "ANDROID HORIZON" curved above the horizon, space background with stars
+- [x] **About screen** (press **−**) with live GitHub avatar + project info
+- [x] **Reinstall button** (**X**) — re-extracts APK without needing to delete the game folder
+
+### [Previous builds]
+
+- [x] **Performance Expectations section** added to README
+- [x] **APK chooser QoL**: WebP icon decoding, linear icon scaling, colored monogram placeholders, larger icons, file size shown per APK
+- [x] **Heap staging buffer for ELF loading** — fixed hard crash on first write to JIT-writable memory
+- [x] **Per-relocation-entry logging + bounds checks** in `applyRela()` — bounds-checks `sym.st_name` against `DT_STRSZ`, caps `R_AARCH64_COPY` size at 64KB
+- [x] **Per-constructor logging** — `elfRunCtors()` logs each constructor address + index and flushes before calling it
+- [x] **Load all .so files** — replaced `findMainSo` with `findAllSos`; all three libs are loaded smallest-first
+- [x] **40+ new shims** — `sigaction`, signal sets, `prctl`, `gettid`, `getpid`, `getuid`, `getgid`, `getauxval`, `mprotect`, `mmap`, `munmap`, `pipe`, `dup`, `dup2`, `ioctl`, `access`, `chmod`, `fchmod`, `lstat`, `pthread_setname_np`, `pthread_getname_np`, `pthread_attr_setstack`, `pthread_barrier_*`, `kill`, `raise`, `pthread_kill`, `sleep`, `usleep`, `clock_nanosleep`, `strtod_l`, `strtof_l`, `__register_atfork`
+- [x] **ELF loader: SplitMap JIT** — `MapSlave` (Rx) + `MapOwner` (Rw) at adjacent VAs; 0xD801 blocker resolved
+- [x] **120+ shims**: `setjmp`/`longjmp`, `sem_*`, all time functions, all wide-char and locale functions, all Bionic fortified string wrappers, networking stubs, `android_set_abort_message`, `sincosf`, `stpcpy`, `vasprintf`, `vsscanf`, `strerror`, `strtold`, `puts`/`putchar`, `rename`/`remove`, `__sF`, `__stack_chk_guard`, `pthread_mutexattr_*`, `__cxa_finalize`
+- [x] Capture svc result codes from ELF loader and surface on diagnostic screen
+- [x] Abort launch early when code pages not executable — diagnostic screen instead of Switch crash
+- [x] Add `LaunchResult` struct — structured error info instead of bare bool
 - [x] Add `ProgressCb` callback — UI shows each launch stage on-screen in real time
-- [x] Replace "(loader not yet implemented)" stub screen with a proper diagnostic result screen showing failure stage, unresolved symbol count, and svc error codes
-- [x] Track and display unresolved ELF symbol count after each load
-- [x] Change NRO author to `aaronworld.uk`
-- [x] Improve README with badges, profile link, AI disclaimer, in-depth TODO
+- [x] Docked mode detection — footer turns amber and warns
 
 ### 0.1.0 — Initial release
 
@@ -262,9 +255,9 @@ This section gets replaced with real measured numbers once the game boots far en
 
 This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for the full text.
 
-**In plain English:** You can use, copy, modify, share, and even sell this code freely, as long as you keep the copyright notice. There is no warranty — if it breaks your Switch, that's on you (please use CFW responsibly). You do not need to open-source any modifications you make, but you must include the original copyright line.
+**In plain English:** You can use, copy, modify, share, and even sell this code freely, as long as you keep the copyright notice. There is no warranty — if it breaks your Switch, that's on you (please use CFW responsibly).
 
-The MIT license does **not** cover the Android games themselves — those belong to their respective developers. BareDroidNX only provides the compatibility layer.
+The MIT license does **not** cover the Android games themselves — those belong to their respective developers. Android Horizon only provides the compatibility layer.
 
 ---
 

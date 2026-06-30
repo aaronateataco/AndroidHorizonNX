@@ -5,7 +5,9 @@
 #include <sys/stat.h>
 #include <cctype>
 #include <cstdio>
+#include <cstring>
 #include <algorithm>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -14,8 +16,9 @@
 #include "build_number.h"
 #include "avatar.h"
 
-static const char* APK_DIR  = "sdmc:/BareDroidNX/apks";
-static const char* LOG_FILE = "sdmc:/BareDroidNX/log.txt";
+static const char* APK_DIR       = "sdmc:/BareDroidNX/apks";
+static const char* LOG_FILE      = "sdmc:/BareDroidNX/log.txt";
+static const char* COMPAT_LOG    = "sdmc:/BareDroidNX/compat_log.txt";
 
 // ---------------------------------------------------------------------------
 // Layout (1280×720)
@@ -28,7 +31,7 @@ static const int LIST_Y   = HEADER_H;
 static const int LIST_H   = SH - HEADER_H - FOOTER_H;
 static const int ITEM_H   = 108;
 static const int ICON_SZ  = 84;
-static const int VISIBLE  = LIST_H / ITEM_H;   // 5 items
+static const int VISIBLE  = LIST_H / ITEM_H;
 
 // Colors
 static const SDL_Color C_BG     = {15,  15,  26,  255};
@@ -42,10 +45,8 @@ static const SDL_Color C_DIM    = {100, 100, 120, 255};
 static const SDL_Color C_OK     = {80,  200, 80,  255};
 static const SDL_Color C_ERR    = {220, 80,  80,  255};
 static const SDL_Color C_WARN   = {220, 180, 60,  255};
-static const SDL_Color C_INST   = {60,  200, 100, 255};  // installed badge
+static const SDL_Color C_INST   = {60,  200, 100, 255};
 
-// ---------------------------------------------------------------------------
-// Log helpers — writes to SD card so we can inspect errors without a screen
 // ---------------------------------------------------------------------------
 static FILE* g_log = nullptr;
 static void logOpen()  { g_log = fopen(LOG_FILE, "w"); }
@@ -55,15 +56,10 @@ static void logMsg(const char* msg) {
 }
 static void logSDL(const char* prefix) {
     if (!g_log) return;
-    fputs(prefix, g_log);
-    fputs(": ", g_log);
-    fputs(SDL_GetError(), g_log);
-    fputc('\n', g_log);
-    fflush(g_log);
+    fputs(prefix, g_log); fputs(": ", g_log);
+    fputs(SDL_GetError(), g_log); fputc('\n', g_log); fflush(g_log);
 }
 
-// ---------------------------------------------------------------------------
-// Switch joystick button indices (SDL2 joystick mode)
 // ---------------------------------------------------------------------------
 static const int BTN_A     = 0;
 static const int BTN_B     = 1;
@@ -73,11 +69,55 @@ static const int BTN_PLUS  = 10;
 static const int BTN_MINUS = 11;
 
 // ---------------------------------------------------------------------------
+// Shared loader state — written by loader thread, read by main thread.
+// ---------------------------------------------------------------------------
+// Matches the ring buffer definition in loader.cpp (UILOG_N=20, UILOG_W=128)
+extern char g_ui_log[20][128];
+extern int  g_ui_head;
+extern int  g_ui_pct;
+
+// Current high-level stage string, set by progressCallback on the loader thread.
+static char g_ui_stage[80] = "Working...";
+
+// ---------------------------------------------------------------------------
+// Loader thread plumbing
+// ---------------------------------------------------------------------------
+struct LoaderCtx {
+    std::string       apk_path;
+    std::string       pkg_name;
+    bool              skip_install = false;
+    LaunchResult      result;
+    std::atomic<bool> done{false};
+};
+
+static LoaderCtx* g_loader_ctx = nullptr;
+
+// Progress callback — called from loader thread.
+// Updates shared state only; never touches SDL (wrong thread).
+static void progressCallback(const char* stage, const char* /*detail*/) {
+    if (stage) {
+        strncpy(g_ui_stage, stage, sizeof(g_ui_stage) - 1);
+        g_ui_stage[sizeof(g_ui_stage) - 1] = '\0';
+    }
+}
+
+static void loaderThreadFn(void*) {
+    g_loader_ctx->result = launchApk(
+        g_loader_ctx->apk_path,
+        g_loader_ctx->pkg_name,
+        progressCallback,
+        g_loader_ctx->skip_install
+    );
+    g_loader_ctx->done.store(true, std::memory_order_release);
+}
+
+// ---------------------------------------------------------------------------
 struct App {
     SDL_Window*    win  = nullptr;
     SDL_Renderer*  rdr  = nullptr;
-    TTF_Font*      fLg  = nullptr;  // 28px
-    TTF_Font*      fSm  = nullptr;  // 18px
+    TTF_Font*      fLg  = nullptr;
+    TTF_Font*      fMd  = nullptr;  // 20px — monospace-ish for log lines
+    TTF_Font*      fSm  = nullptr;
     SDL_Joystick*  joy  = nullptr;
 
     std::vector<ApkInfo>      apks;
@@ -85,7 +125,7 @@ struct App {
     int selected = 0;
     int scroll   = 0;
 
-    SDL_Texture* avatarTex = nullptr;  // live GitHub avatar, swapped in by showAbout()
+    SDL_Texture* avatarTex = nullptr;
 
     // ------------------------------------------------------------------
     TTF_Font* openFont(int ptsize) {
@@ -97,8 +137,6 @@ struct App {
             TTF_Font* f = TTF_OpenFontRW(rw, 1, ptsize);
             if (f) { logMsg("  font: system BFTTF"); return f; }
             logSDL("  BFTTF open failed");
-        } else {
-            logMsg("  plGetSharedFontByType failed");
         }
         romfsInit();
         TTF_Font* f = TTF_OpenFont("romfs:/fonts/DejaVuSans.ttf", ptsize);
@@ -116,22 +154,17 @@ struct App {
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) != 0) {
             logSDL("SDL_Init failed"); logClose(); return false;
         }
-        logMsg("SDL_Init OK");
-
         SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-
         if (IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG | IMG_INIT_WEBP) == 0)
             logSDL("IMG_Init warning");
         if (TTF_Init() != 0) {
             logSDL("TTF_Init failed"); logClose(); return false;
         }
-        logMsg("TTF_Init OK");
 
         win = SDL_CreateWindow("BareDroidNX",
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             SW, SH, SDL_WINDOW_SHOWN);
         if (!win) { logSDL("CreateWindow failed"); logClose(); return false; }
-        logMsg("Window OK");
 
         rdr = SDL_CreateRenderer(win, -1,
             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -140,23 +173,19 @@ struct App {
             rdr = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
         }
         if (!rdr) { logSDL("CreateRenderer failed"); logClose(); return false; }
-        logMsg("Renderer OK");
 
         SDL_SetRenderDrawBlendMode(rdr, SDL_BLENDMODE_BLEND);
 
         fLg = openFont(28);
-        fSm = openFont(18);
-        if (!fLg || !fSm) {
-            logMsg("Font load failed"); logClose(); return false;
-        }
-        logMsg("Fonts OK");
+        fMd = openFont(20);
+        fSm = openFont(17);
+        if (!fLg || !fSm) { logMsg("Font load failed"); logClose(); return false; }
+        if (!fMd) fMd = fSm;
 
         if (SDL_NumJoysticks() > 0) {
             joy = SDL_JoystickOpen(0);
             if (!joy) logSDL("JoystickOpen warning");
-            else       logMsg("Joystick OK");
         }
-
         logMsg("init complete");
         return true;
     }
@@ -167,12 +196,12 @@ struct App {
         if (avatarTex) SDL_DestroyTexture(avatarTex);
         for (auto* t : icons) if (t) SDL_DestroyTexture(t);
         if (fLg)  TTF_CloseFont(fLg);
+        if (fMd && fMd != fSm) TTF_CloseFont(fMd);
         if (fSm)  TTF_CloseFont(fSm);
         if (joy)  SDL_JoystickClose(joy);
         if (rdr)  SDL_DestroyRenderer(rdr);
         if (win)  SDL_DestroyWindow(win);
-        romfsExit();
-        plExit();
+        romfsExit(); plExit();
         TTF_Quit(); IMG_Quit(); SDL_Quit();
         logMsg("cleanup done");
         logClose();
@@ -214,8 +243,6 @@ struct App {
         return buf;
     }
 
-    // Android-style colored monogram placeholder for APKs with no usable icon —
-    // a flat gray box doesn't read as "app" the way a colored initial does.
     void drawMonogram(const std::string& name, int x, int y, int sz) {
         static const SDL_Color PALETTE[] = {
             {239, 83,  80,  255}, {171, 71,  188, 255}, {66,  165, 245, 255},
@@ -225,9 +252,7 @@ struct App {
         uint32_t h = 2166136261u;
         for (char c : name) h = (h ^ (uint8_t)c) * 16777619u;
         SDL_Color bg = PALETTE[h % (sizeof(PALETTE) / sizeof(PALETTE[0]))];
-
         fill(x, y, sz, sz, bg);
-
         char letter = name.empty() ? '?' : (char)toupper((unsigned char)name[0]);
         std::string s(1, letter);
         int w = 0, h2 = 0;
@@ -275,13 +300,11 @@ struct App {
     // ------------------------------------------------------------------
     void render() {
         fill(0, 0, SW, SH, C_BG);
-
-        // Header
         fill(0, 0, SW, HEADER_H, C_HEADER);
-        drawText(fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
+        drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
         {
             int tw = 0, th = 0;
-            TTF_SizeUTF8(fLg, "BareDroidNX", &tw, &th);
+            TTF_SizeUTF8(fLg, "Android Horizon", &tw, &th);
             drawText(fSm, BUILD_VERSION, C_DIM, 30 + tw + 14, (HEADER_H + 4) / 2);
         }
         if (!apks.empty()) {
@@ -292,7 +315,6 @@ struct App {
             drawText(fSm, cnt, C_DIM, SW - w - 30, (HEADER_H - 18) / 2);
         }
 
-        // List
         if (apks.empty()) {
             drawText(fSm,
                 "No APKs found — place .apk files in sdmc:/BareDroidNX/apks/",
@@ -301,9 +323,7 @@ struct App {
             int end = std::min((int)apks.size(), scroll + VISIBLE);
             for (int i = scroll; i < end; i++) {
                 int iy = LIST_Y + (i - scroll) * ITEM_H;
-
                 if (i == selected) fill(0, iy, SW, ITEM_H, C_SEL);
-
                 SDL_SetRenderDrawColor(rdr, C_DIV.r, C_DIV.g, C_DIV.b, 255);
                 SDL_RenderDrawLine(rdr, 0, iy + ITEM_H - 1, SW, iy + ITEM_H - 1);
 
@@ -319,7 +339,6 @@ struct App {
                 int maxW = SW - tx - 30;
                 drawText(fLg, clamp(fLg, apks[i].appName, maxW), C_WHITE, tx, iy + 14);
 
-                // Installed badge (right side of name row)
                 if (apks[i].installed) {
                     static const std::string INST = "INSTALLED";
                     int bw = 0, bh = 0;
@@ -337,7 +356,6 @@ struct App {
                     pkgLine += "  ·  " + formatSize(apks[i].fileSizeBytes);
                 drawText(fSm, clamp(fSm, pkgLine, maxW), C_GRAY, tx, iy + 58);
             }
-            // Scrollbar
             if ((int)apks.size() > VISIBLE) {
                 int barH = LIST_H * VISIBLE / (int)apks.size();
                 int barY = LIST_Y + LIST_H * scroll / (int)apks.size();
@@ -345,111 +363,268 @@ struct App {
             }
         }
 
-        // Footer
         fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
         if (appletGetOperationMode() == AppletOperationMode_Console) {
             drawText(fSm, "Docked — games need handheld (touch screen)     +: Quit",
                 C_WARN, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
         } else {
-            drawText(fSm, "A: Launch     X: Reinstall     Y: Rescan     -: About     +: Quit",
+            drawText(fSm,
+                "A: Launch     X: Reinstall     Y: Rescan     -: About     +: Quit",
                 C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
         }
-
         SDL_RenderPresent(rdr);
     }
 
     // ------------------------------------------------------------------
-    // Show the current launch stage on-screen with a progress bar and
-    // a rolling sub-step log pulled from the compatUiLog ring buffer.
+    // Read the last N lines of compat_log.txt from disk.
+    // Rate-limited to every 200ms so we don't thrash the SD card.
     // ------------------------------------------------------------------
-    void showProgress(const char* stage, const char* /*detail*/) {
-        // Ring buffer exported from loader.cpp
-        extern char g_ui_log[5][92];
-        extern int  g_ui_head;
-        extern int  g_ui_pct;
+    void tailLog(std::vector<std::string>& out, int maxLines) {
+        static Uint32 s_last = 0;
+        static std::vector<std::string> s_cache;
 
-        // Loop / hang detection: if the ring-buffer head hasn't advanced and
-        // the stage label hasn't changed for a while, the native code is
-        // probably stuck in a tight loop.
-        static int      s_last_head  = -1;
-        static Uint32   s_last_adv   = 0;
-        static char     s_last_stage[64] = {};
         Uint32 now = SDL_GetTicks();
-        if (g_ui_head != s_last_head || strcmp(stage ? stage : "", s_last_stage) != 0) {
-            s_last_head = g_ui_head;
-            s_last_adv  = now;
-            strncpy(s_last_stage, stage ? stage : "", sizeof(s_last_stage) - 1);
+        if (now - s_last < 200 && !s_cache.empty()) {
+            out = s_cache;
+            return;
         }
-        bool maybe_looping = (now - s_last_adv) > 45000u; // 45 s with no progress
+        s_last = now;
 
+        FILE* f = fopen(COMPAT_LOG, "r");
+        if (!f) { out = s_cache; return; }
+
+        fseek(f, 0, SEEK_END);
+        long sz = ftell(f);
+        const long READ_WINDOW = 6144;
+        long readAt = sz > READ_WINDOW ? sz - READ_WINDOW : 0;
+        fseek(f, readAt, SEEK_SET);
+
+        char buf[6400] = {};
+        int n = (int)fread(buf, 1, sizeof(buf) - 1, f);
+        fclose(f);
+        buf[n] = '\0';
+
+        s_cache.clear();
+        char* p = buf;
+        // Skip first partial line if we didn't read from the start
+        if (readAt > 0) {
+            while (*p && *p != '\n') p++;
+            if (*p == '\n') p++;
+        }
+
+        char* ls = p;
+        while (*p) {
+            if (*p == '\n') {
+                if (p > ls) {
+                    *p = '\0';
+                    s_cache.push_back(std::string(ls));
+                }
+                ls = p + 1;
+            }
+            p++;
+        }
+        if (p > ls && *ls) s_cache.push_back(std::string(ls));
+
+        while ((int)s_cache.size() > maxLines)
+            s_cache.erase(s_cache.begin());
+
+        out = s_cache;
+    }
+
+    // ------------------------------------------------------------------
+    // Progress screen — fully animated, called at ~60fps from main thread.
+    // Reads shared state written by the loader thread (g_ui_stage, g_ui_pct,
+    // g_ui_log, g_ui_head) plus live tails compat_log.txt for the log feed.
+    // ------------------------------------------------------------------
+    void showProgress() {
+        Uint32 now = SDL_GetTicks();
+
+        // Track elapsed time per stage
+        static char   s_stage[80] = {};
+        static Uint32 s_stage_t   = 0;
+        if (strncmp(g_ui_stage, s_stage, sizeof(s_stage)) != 0) {
+            memcpy(s_stage, g_ui_stage, sizeof(s_stage));
+            s_stage[sizeof(s_stage) - 1] = '\0';
+            s_stage_t = now;
+        }
+        Uint32 elapsed_s = (now - s_stage_t) / 1000;
+
+        // ── Background ──
         fill(0, 0, SW, SH, C_BG);
         fill(0, 0, SW, HEADER_H, C_HEADER);
-        drawText(fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
-        drawText(fSm, "Launching...", C_DIM, SW - 160, (HEADER_H - 18) / 2);
+        drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
 
-        int y = LIST_Y + 28;
+        // Animated spinner in header (4-frame ASCII, cycles every 150ms)
+        static const char* SPINS[] = {"| Loading", "/ Loading", "- Loading", "\\ Loading"};
+        drawText(fSm, SPINS[(now / 150) % 4], C_DIM, SW - 200, (HEADER_H - 18) / 2);
 
-        // Stage label
-        drawText(fLg, stage ? stage : "Working...", C_WHITE, 40, y);
+        int y = LIST_Y + 22;
+
+        // ── Stage label with elapsed ──
+        std::string stLabel = g_ui_stage[0] ? std::string(g_ui_stage) : "Working...";
+        if (elapsed_s >= 2) {
+            char es[24];
+            snprintf(es, sizeof(es), "  (%us)", (unsigned)elapsed_s);
+            stLabel += es;
+        }
+        drawText(fLg, clamp(fLg, stLabel, SW - 80), C_WHITE, 40, y);
         y += 46;
 
-        // Progress bar
-        static const int BAR_X = 40;
-        static const int BAR_W = SW - 80;
-        static const int BAR_H = 18;
-        // Track background
-        fill(BAR_X, y, BAR_W, BAR_H, {28, 28, 55, 255});
-        // Fill — Google blue tint
-        int fillW = g_ui_pct > 0 ? (BAR_W * g_ui_pct / 100) : 0;
-        if (fillW > 0)
-            fill(BAR_X, y, fillW, BAR_H, {66, 133, 244, 255});
-        // Border
-        SDL_SetRenderDrawColor(rdr, 70, 70, 130, 255);
-        SDL_Rect barBorder = {BAR_X, y, BAR_W, BAR_H};
-        SDL_RenderDrawRect(rdr, &barBorder);
-        // Percentage label right of bar
-        char pctBuf[8];
-        snprintf(pctBuf, sizeof(pctBuf), "%d%%", g_ui_pct);
-        drawText(fSm, pctBuf, C_DIM, BAR_X + BAR_W + 6, y);
-        y += BAR_H + 20;
+        // ── Progress bar ──
+        const int BAR_X = 40, BAR_W = SW - 80, BAR_H = 18;
+        fill(BAR_X, y, BAR_W, BAR_H, {18, 18, 44, 255});
+        int fw = g_ui_pct > 0 ? BAR_W * g_ui_pct / 100 : 0;
+        if (fw > 0) fill(BAR_X, y, fw, BAR_H, {66, 133, 244, 255});
+        SDL_SetRenderDrawColor(rdr, 55, 55, 110, 255);
+        SDL_Rect bb = {BAR_X, y, BAR_W, BAR_H};
+        SDL_RenderDrawRect(rdr, &bb);
+        char pb[8]; snprintf(pb, sizeof(pb), "%d%%", g_ui_pct);
+        drawText(fSm, pb, C_DIM, BAR_X + BAR_W + 10, y + 1);
+        y += BAR_H + 10;
 
-        // Sub-step rolling log — show last 4 lines, oldest at top, newest at bottom
-        static const SDL_Color C_STEP = {110, 155, 230, 255};
-        static const SDL_Color C_STEP_DIM = {70, 100, 160, 255};
-        for (int i = 3; i >= 0; i--) {
-            if (g_ui_head == 0) { y += 24; continue; }
-            int slot = ((g_ui_head - 1 - i) % 5 + 5) % 5;
-            if (g_ui_log[slot][0]) {
-                std::string line = std::string(i == 0 ? "> " : "  ") + g_ui_log[slot];
-                SDL_Color col = (i == 0) ? C_STEP : C_STEP_DIM;
-                drawText(fSm, clamp(fSm, line, SW - 80), col, 40, y);
-            }
-            y += 24;
+        // ── Activity scan bar — sweeps left→right every 2s regardless of progress ──
+        const int SCAN_H = 8;
+        fill(BAR_X, y, BAR_W, SCAN_H, {12, 12, 32, 255});
+        // Bright highlight travels across the bar width in a 2s cycle
+        const int GLOW_W = 120;
+        int sweep = (int)((Uint64)(now % 2000) * (BAR_W + GLOW_W * 2) / 2000) - GLOW_W;
+        int sx0 = std::max(BAR_X, BAR_X + sweep);
+        int sx1 = std::min(BAR_X + BAR_W, BAR_X + sweep + GLOW_W);
+        if (sx1 > sx0)
+            fill(sx0, y, sx1 - sx0, SCAN_H, {100, 190, 255, 200});
+        // Brighter leading edge
+        if (sx1 > sx0) {
+            int edge = std::max(sx0, sx1 - 18);
+            fill(edge, y, sx1 - edge, SCAN_H, {200, 230, 255, 230});
         }
+        y += SCAN_H + 16;
 
-        if (maybe_looping) {
-            int bY = y + 4;
-            fill(20, bY, SW - 40, 54, {60, 20, 20, 230});
-            drawText(fSm, "No progress for 45s — may be stuck in a loop.",
-                     C_ERR, 32, bY + 4);
-            drawText(fSm, "Good time to share compat_log.txt with the test environment.",
-                     C_WARN, 32, bY + 28);
+        // ── Terminal log box ──
+        const int BOX_X  = 30;
+        const int BOX_W  = SW - 60;
+        const int LH     = 21;
+        const int N_SHOW = 13;   // visible log lines inside the box
+        const int BOX_H  = LH * (N_SHOW + 1) + 14; // +1 for title bar, +14 padding
+
+        fill(BOX_X, y, BOX_W, BOX_H, {8, 8, 20, 230});
+        // Title bar
+        fill(BOX_X, y, BOX_W, LH + 4, {22, 22, 52, 240});
+        drawText(fSm, "  compat_log.txt", {70, 100, 160, 255}, BOX_X + 8, y + 3);
+        // Pulsing dot to show file is being read live
+        Uint32 dotPhase = (now / 600) % 3;
+        std::string liveDots = std::string(dotPhase > 0 ? "." : " ")
+                             + std::string(dotPhase > 1 ? "." : " ")
+                             + std::string(dotPhase > 2 ? "." : " ");
+        drawText(fSm, "live" + liveDots, {60, 180, 80, 255}, BOX_X + BOX_W - 110, y + 3);
+        y += LH + 8;
+
+        // Log lines
+        std::vector<std::string> logLines;
+        tailLog(logLines, N_SHOW + 4); // fetch a few extra for filtering
+
+        const SDL_Color C_LOG      = {90,  150, 210, 255};
+        const SDL_Color C_LOG_NEW  = {210, 235, 255, 255};
+        const SDL_Color C_LOG_WARN = {220, 170, 60,  255};
+        const SDL_Color C_LOG_ERR  = {220, 100, 80,  255};
+
+        int startIdx = (int)logLines.size() > N_SHOW
+                       ? (int)logLines.size() - N_SHOW : 0;
+        int liy = y;
+        for (int i = startIdx; i < (int)logLines.size(); i++) {
+            bool isLast = (i == (int)logLines.size() - 1);
+            const std::string& ln = logLines[i];
+
+            SDL_Color c = isLast ? C_LOG_NEW : C_LOG;
+            // Colour-code errors/warnings (but newest line always stays bright)
+            if (!isLast) {
+                if (ln.find("FAULT") != std::string::npos ||
+                    ln.find("fail")  != std::string::npos ||
+                    ln.find("ERR")   != std::string::npos)
+                    c = C_LOG_ERR;
+                else if (ln.find("WARN") != std::string::npos ||
+                         ln.find("warn") != std::string::npos)
+                    c = C_LOG_WARN;
+            }
+
+            std::string pfx = isLast ? "> " : "  ";
+            drawText(fMd ? fMd : fSm,
+                     clamp(fMd ? fMd : fSm, pfx + ln, BOX_W - 24),
+                     c, BOX_X + 10, liy);
+            liy += LH;
+        }
+        y = liy + (N_SHOW - (int)(logLines.size() - startIdx)) * LH;
+        y += 14; // bottom padding of box
+
+        // ── "Still working" notice after 30s without stage change ──
+        if (elapsed_s >= 30) {
+            fill(30, y, SW - 60, 52, {38, 16, 10, 230});
+            char warnMsg[192];
+            snprintf(warnMsg, sizeof(warnMsg),
+                     "Still in '%.*s' for %us — normal for large libs.",
+                     48, s_stage, (unsigned)elapsed_s);
+            drawText(fSm, warnMsg, C_WARN, 42, y + 6);
+            drawText(fSm,
+                     "If the log above stopped updating, share compat_log.txt.",
+                     C_ERR, 42, y + 30);
+            y += 60;
         }
 
         fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
-        if (appletGetOperationMode() == AppletOperationMode_Console) {
-            drawText(fSm, "Docked — check compat_log.txt",
-                     C_WARN, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
-        } else {
-            drawText(fSm, "Please wait — check sdmc:/BareDroidNX/compat_log.txt",
-                     C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
-        }
+        drawText(fSm, "Please wait — sdmc:/BareDroidNX/compat_log.txt",
+                 C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
 
         SDL_RenderPresent(rdr);
     }
 
     // ------------------------------------------------------------------
-    // Show the result of a launch attempt with full diagnostic info.
+    // Run launchApk on a background thread while this method drives the
+    // animated progress screen on the main thread at ~60fps.
+    // ------------------------------------------------------------------
+    LaunchResult runLaunch(const ApkInfo& apk, bool skipInstall) {
+        std::string pkg = apk.packageName.empty() ? apk.filename : apk.packageName;
+
+        // Invalidate tailLog cache so the new log appears immediately
+        // (force a fresh read on the first frame)
+        {
+            // We do this by calling tailLog with a throw-away vector; the
+            // stale cache will be replaced as soon as the new file appears.
+        }
+
+        // Set initial stage before thread starts so first frame looks right
+        const char* verb = skipInstall ? "Launching (cached)" : "Installing + Launching";
+        strncpy(g_ui_stage, verb, sizeof(g_ui_stage) - 1);
+
+        LoaderCtx ctx;
+        ctx.apk_path    = apk.path;
+        ctx.pkg_name    = pkg;
+        ctx.skip_install = skipInstall;
+        g_loader_ctx    = &ctx;
+
+        Thread t;
+        threadCreate(&t, loaderThreadFn, nullptr, nullptr,
+                     0x100000 /*1MB stack*/, 0x2C, 1 /*CPU 1*/);
+        threadStart(&t);
+
+        // Main thread render loop — keeps the UI alive until the loader finishes
+        bool quitting = false;
+        while (!ctx.done.load(std::memory_order_acquire) && !quitting) {
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev)) {
+                if (ev.type == SDL_QUIT) quitting = true;
+            }
+            showProgress();
+            SDL_Delay(16); // ~60fps
+        }
+
+        // Render a final frame so the last log line is visible
+        showProgress();
+
+        threadWaitForExit(&t);
+        threadClose(&t);
+        g_loader_ctx = nullptr;
+        return ctx.result;
+    }
+
     // ------------------------------------------------------------------
     void showLaunchResult(const LaunchResult& res, int idx) {
         if (idx < 0 || idx >= (int)apks.size()) return;
@@ -460,17 +635,14 @@ struct App {
             SDL_Event ev;
             while (SDL_PollEvent(&ev)) {
                 if (ev.type == SDL_QUIT) { done = true; }
-                if (ev.type == SDL_JOYBUTTONDOWN &&
-                    ev.jbutton.button == BTN_B)   { done = true; }
-                if (ev.type == SDL_KEYDOWN &&
-                    ev.key.keysym.sym == SDLK_ESCAPE) { done = true; }
+                if (ev.type == SDL_JOYBUTTONDOWN && ev.jbutton.button == BTN_B) { done = true; }
+                if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) { done = true; }
             }
 
             fill(0, 0, SW, SH, C_BG);
             fill(0, 0, SW, HEADER_H, C_HEADER);
-            drawText(fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
+            drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
 
-            // Game icon (small)
             int iconSz = 112;
             if (idx < (int)icons.size() && icons[idx]) {
                 SDL_Rect dst = {(SW - iconSz) / 2, LIST_Y + 16, iconSz, iconSz};
@@ -479,7 +651,6 @@ struct App {
                 drawMonogram(apk.appName, (SW - iconSz) / 2, LIST_Y + 16, iconSz);
             }
 
-            // Game name
             int nameY = LIST_Y + 16 + iconSz + 12;
             {
                 int w = 0, h = 0;
@@ -488,7 +659,6 @@ struct App {
                 drawText(fLg, nm, C_WHITE, (SW - w) / 2, nameY);
             }
 
-            // Status banner
             std::string statusStr = res.ok ? "Launch OK" : "Launch Failed";
             SDL_Color   statusCol = res.ok ? C_OK : C_ERR;
             {
@@ -498,39 +668,28 @@ struct App {
             }
 
             int y = nameY + 100;
-
-            // Failure details
             if (!res.ok) {
-                if (!res.errorStage.empty()) {
-                    std::string s = "Failed at:  " + res.errorStage;
-                    drawText(fSm, s, C_WARN, 60, y);  y += 28;
-                }
-                if (!res.errorDetail.empty()) {
-                    drawText(fSm, res.errorDetail, C_GRAY, 60, y);  y += 28;
-                }
+                if (!res.errorStage.empty())
+                    { drawText(fSm, "Failed at:  " + res.errorStage, C_WARN, 60, y); y += 28; }
+                if (!res.errorDetail.empty())
+                    { drawText(fSm, res.errorDetail, C_GRAY, 60, y); y += 28; }
             }
-
-            // Unresolved symbols — shown for both success and failure
             if (res.unresolved > 0) {
                 char buf[128];
                 snprintf(buf, sizeof(buf),
                          "Unresolved symbols: %d  (may crash when those code paths execute)",
                          res.unresolved);
-                drawText(fSm, buf, C_WARN, 60, y);  y += 28;
+                drawText(fSm, buf, C_WARN, 60, y); y += 28;
             }
-
-            // JIT allocation failure
             if (res.svcPermCode != 0) {
                 char buf[128];
                 snprintf(buf, sizeof(buf),
-                         "JIT alloc: 0x%08X — code segment not executable",
-                         res.svcPermCode);
-                drawText(fSm, buf, C_ERR, 60, y);  y += 28;
+                         "JIT alloc: 0x%08X — code segment not executable", res.svcPermCode);
+                drawText(fSm, buf, C_ERR, 60, y); y += 28;
                 drawText(fSm,
                          "jitCreate/jitTransitionToExecutable failed. Needs Atmosphere CFW.",
-                         C_GRAY, 60, y);  y += 28;
+                         C_GRAY, 60, y); y += 28;
             }
-
             y += 8;
             drawText(fSm, "Full log: sdmc:/BareDroidNX/compat_log.txt", C_DIM, 60, y);
 
@@ -544,10 +703,6 @@ struct App {
     }
 
     // ------------------------------------------------------------------
-    // About screen — shows the live GitHub avatar fetched by avatar.cpp.
-    // Polls avatarPollNewImage() every frame so the picture updates in
-    // place if it changes on GitHub while this screen stays open.
-    // ------------------------------------------------------------------
     void showAbout() {
         bool done = false;
         while (!done) {
@@ -555,9 +710,10 @@ struct App {
             while (SDL_PollEvent(&ev)) {
                 if (ev.type == SDL_QUIT) { done = true; }
                 if (ev.type == SDL_JOYBUTTONDOWN &&
-                    (ev.jbutton.button == BTN_B || ev.jbutton.button == BTN_MINUS)) { done = true; }
-                if (ev.type == SDL_KEYDOWN &&
-                    ev.key.keysym.sym == SDLK_ESCAPE) { done = true; }
+                    (ev.jbutton.button == BTN_B || ev.jbutton.button == BTN_MINUS))
+                    { done = true; }
+                if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                    { done = true; }
             }
 
             std::vector<uint8_t> img;
@@ -573,7 +729,7 @@ struct App {
 
             fill(0, 0, SW, SH, C_BG);
             fill(0, 0, SW, HEADER_H, C_HEADER);
-            drawText(fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
+            drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
 
             int avSz = 160;
             int avX  = (SW - avSz) / 2;
@@ -582,9 +738,7 @@ struct App {
                 SDL_Rect dst = {avX, avY, avSz, avSz};
                 SDL_RenderCopy(rdr, avatarTex, nullptr, &dst);
             } else {
-                drawMonogram("BareDroidNX", avX, avY, avSz);
-                drawText(fSm, "Fetching avatar...", C_DIM,
-                         (SW - 0) / 2, avY + avSz + 10);
+                drawMonogram("AndroidHorizon", avX, avY, avSz);
             }
 
             int y = avY + avSz + 40;
@@ -594,11 +748,11 @@ struct App {
                 drawText(f, s, col, (SW - w) / 2, y);
                 y += h + 10;
             };
-            center(fLg, "BareDroidNX", C_WHITE);
+            center(fLg, "Android Horizon", C_WHITE);
             center(fSm, BUILD_VERSION, C_DIM);
             center(fSm, "by aaronworld.uk", C_GRAY);
             y += 10;
-            center(fSm, "Android NDK compatibility layer for Nintendo Switch", C_GRAY);
+            center(fSm, "Android NDK compatibility layer for Nintendo Switch (HorizonOS)", C_GRAY);
 
             fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
             drawText(fSm, "B: Back to menu",
@@ -611,19 +765,8 @@ struct App {
 };
 
 // ---------------------------------------------------------------------------
-// Global progress callback — bridges loader.cpp → App::showProgress
-// Must be defined after App so the method is in scope.
-// ---------------------------------------------------------------------------
-static App* g_app_ptr = nullptr;
-
-static void progressCallback(const char* stage, const char* detail) {
-    if (g_app_ptr) g_app_ptr->showProgress(stage, detail);
-}
-
-// ---------------------------------------------------------------------------
 int main(int, char**) {
     App app;
-    g_app_ptr = &app;
 
     if (!app.init()) return 1;
     avatarStart();
@@ -633,7 +776,7 @@ int main(int, char**) {
     // Scanning splash
     app.fill(0, 0, SW, SH, C_BG);
     app.fill(0, 0, SW, HEADER_H, C_HEADER);
-    app.drawText(app.fLg, "BareDroidNX", C_WHITE, 30, (HEADER_H - 28) / 2);
+    app.drawText(app.fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
     app.drawText(app.fSm, "Scanning for APKs...", C_GRAY, 30, LIST_Y + 30);
     SDL_RenderPresent(app.rdr);
 
@@ -660,13 +803,8 @@ int main(int, char**) {
                     case BTN_A:
                         if (!app.apks.empty()) {
                             const ApkInfo& apk = app.apks[app.selected];
-                            std::string pkg = apk.packageName.empty()
-                                                ? apk.filename : apk.packageName;
                             bool skip = apk.installed;
-                            const char* verb = skip ? "Launching (cached)" : "Installing + Launching";
-                            app.showProgress(verb, apk.appName.c_str());
-                            LaunchResult res = launchApk(apk.path, pkg, progressCallback, skip);
-                            // If install happened this run, refresh installed flag for this entry
+                            LaunchResult res = app.runLaunch(apk, skip);
                             if (!skip) app.apks[app.selected].installed = true;
                             app.showLaunchResult(res, app.selected);
                             redraw = true;
@@ -676,10 +814,7 @@ int main(int, char**) {
                     case BTN_X:
                         if (!app.apks.empty()) {
                             const ApkInfo& apk = app.apks[app.selected];
-                            std::string pkg = apk.packageName.empty()
-                                                ? apk.filename : apk.packageName;
-                            app.showProgress("Reinstalling", apk.appName.c_str());
-                            LaunchResult res = launchApk(apk.path, pkg, progressCallback, false);
+                            LaunchResult res = app.runLaunch(apk, false);
                             app.apks[app.selected].installed = true;
                             app.showLaunchResult(res, app.selected);
                             redraw = true;
@@ -718,7 +853,6 @@ int main(int, char**) {
                 }
             }
 
-            // Left stick fallback
             if (ev.type == SDL_JOYAXISMOTION && ev.jaxis.axis == 1) {
                 Uint32 now = SDL_GetTicks();
                 if (now - lastStick > 180) {

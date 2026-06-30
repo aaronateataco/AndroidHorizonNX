@@ -764,9 +764,12 @@ LoadedSo* elfLoad(const char* path, ProgressCb cb) {
         // code directly there; it aliases the same pages as code_va_base (the
         // MapSlave Rx view), so the executed code picks up the writes after a
         // cache flush (__builtin___clear_cache below).
+        compatUiLog("Copying code segment...");
+        if (cb) cb("Loading ELF library", "Copying code segment");
         compatLogFmt("ELF: SplitMap copy code→heap %p (exec=%p) size=0x%zx",
                      (void*)code_heap_buf, (void*)code_va_base, code_jit_size);
         memcpy(code_heap_buf, stage, code_jit_size);
+        compatUiLog("Copying data segment...");
         compatLogFmt("ELF: SplitMap copy data→va %p size=0x%zx", (void*)data_va_base, data_jit_size);
         memcpy(data_va_base, stage + data_off_pg, data_jit_size);
     } else if (using_jit) {

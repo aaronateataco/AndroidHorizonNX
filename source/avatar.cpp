@@ -44,11 +44,8 @@ static bool fetchOnce(std::vector<uint8_t>& out) {
 }
 
 static void avatarThreadFunc(void*) {
-    // nifmGetInternetConnectionStatus requires NifmServiceType_System which
-    // homebrew may not always have.  curl already times out cleanly when
-    // offline, so just try immediately and let it report failure instead of
-    // gating on a nifm check that might itself fail.
-    nifmInitialize(NifmServiceType_System);
+    // curl uses the bsd/ssl socket services which hbloader wires up directly.
+    // nifm is NOT required — skipping it avoids permission issues on homebrew.
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     while (g_running.load()) {
@@ -68,7 +65,6 @@ static void avatarThreadFunc(void*) {
     }
 
     curl_global_cleanup();
-    nifmExit();
 }
 
 void avatarStart() {
