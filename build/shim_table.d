@@ -182,7 +182,11 @@ shim_table.o: \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES2/gl2.h \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES2/gl2platform.h \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES3/gl3.h \
- /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES3/gl3platform.h
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES3/gl3platform.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/poll.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/sys/socket.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/sys/_iovec.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/sys/_sockaddr_storage.h
 /home/aaron/Documents/Github/BareDroidNX/include/compat/loader.h:
 /home/aaron/Documents/Github/BareDroidNX/include/compat/android.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/EGL/egl.h:
@@ -366,3 +370,7 @@ shim_table.o: \
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES2/gl2platform.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES3/gl3.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/GLES3/gl3platform.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/poll.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/sys/socket.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/sys/_iovec.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/sys/_sockaddr_storage.h:

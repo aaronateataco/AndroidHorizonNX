@@ -23,6 +23,10 @@
 #include <locale.h>
 #include <setjmp.h>
 #include <climits>
+#include <fenv.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <utime.h>
 
 // Newlib stubs for POSIX functions that may be missing
 static size_t stub_strnlen(const char* s, size_t n) {
@@ -42,6 +46,141 @@ static int  stub_posix_memalign(void** p, size_t a, size_t s) {
     *p = memalign(a, s);
     return *p ? 0 : 12; // ENOMEM
 }
+
+// ─── New stubs for batch 3 (all symbols unresolved in the latest run) ─────────
+
+// dladdr: crash reporters call this to resolve their own address → return failure
+// Dl_info layout: 4 pointers (fname, fbase, sname, saddr) — zero them all
+static int stub_dladdr(const void*, void* info) {
+    if (info) memset(info, 0, 4 * sizeof(void*));
+    return 0;
+}
+// sigaltstack: crash reporters use this to set up signal alt-stack → no-op
+static int stub_sigaltstack(const void*, void*) { return 0; }
+// signal: forward to newlib (returns SIG_DFL on failure)
+// strsignal: return a static string
+static char g_signame_buf[32];
+static char* stub_strsignal(int sig) {
+    snprintf(g_signame_buf, sizeof(g_signame_buf), "Signal %d", sig);
+    return g_signame_buf;
+}
+// sys_signame: Android/BSD symbol — pointer to array of signal name strings
+static const char* g_sys_signames[32] = {
+    "", "HUP","INT","QUIT","ILL","TRAP","ABRT","BUS",
+    "FPE","KILL","USR1","SEGV","USR2","PIPE","ALRM","TERM",
+    "STKFLT","CHLD","CONT","STOP","TSTP","TTIN","TTOU","URG",
+    "XCPU","XFSZ","VTALRM","PROF","WINCH","IO","PWR","SYS"
+};
+// environ: standard POSIX pointer to environment strings — expose newlib's
+extern char** environ;
+// gmtime_r / localtime_r — forward to newlib (may already exist, but explicit shim)
+static struct tm* stub_gmtime_r(const time_t* t, struct tm* tm_) {
+    struct tm* r = gmtime(t);
+    if (r && tm_) { *tm_ = *r; return tm_; }
+    return nullptr;
+}
+static struct tm* stub_localtime_r(const time_t* t, struct tm* tm_) {
+    struct tm* r = localtime(t);
+    if (r && tm_) { *tm_ = *r; return tm_; }
+    return nullptr;
+}
+// __memset_chk / __strchr_chk — Bionic security wrappers
+static void* stub_memset_chk(void* d, int c, size_t n, size_t /*dstlen*/) {
+    return memset(d, c, n);
+}
+static char* stub_strchr_chk(const char* s, int c, size_t /*slen*/) {
+    return (char*)strchr(s, c);
+}
+static int stub___FD_SET_chk(int fd, void* set, size_t /*setsize*/) {
+    if (set && fd >= 0 && fd < 1024) { ((uint32_t*)set)[fd/32] |= (1u << (fd%32)); }
+    return 0;
+}
+static int stub___FD_ISSET_chk(int fd, const void* set, size_t /*setsize*/) {
+    if (!set || fd < 0 || fd >= 1024) return 0;
+    return (((const uint32_t*)set)[fd/32] >> (fd%32)) & 1;
+}
+// Process stubs — Switch has no fork/exec/wait
+static int stub_fork()                              { return -1; }
+static int stub_execve(const char*, char* const*, char* const*) { errno = ENOSYS; return -1; }
+static int stub_waitpid(int, int*, int)             { errno = ECHILD; return -1; }
+static void stub__exit(int code)                    { exit(code); }
+// Filesystem stubs missing from existing table
+static int stub_symlink(const char*, const char*)   { errno = ENOSYS; return -1; }
+static int stub_utimes(const char*, const void*)    { return 0; }
+static char* stub_realpath(const char* p, char* out) {
+    if (!out) {
+        out = (char*)malloc(PATH_MAX);
+        if (!out) return nullptr;
+    }
+    strncpy(out, p, PATH_MAX - 1); out[PATH_MAX-1] = '\0';
+    return out;
+}
+static int stub_readlink(const char*, char* buf, size_t sz) {
+    if (sz > 0 && buf) buf[0] = '\0';
+    errno = EINVAL; return -1;
+}
+static int stub_chdir(const char* path) { return chdir(path); }
+static int stub_isatty(int)             { return 0; }
+// Network stubs
+static int stub_setsockopt(int, int, int, const void*, unsigned) { errno = ENOTSUP; return -1; }
+static int stub_accept(int, void*, void*)  { errno = ENOTSUP; return -1; }
+static int stub_poll(void*, unsigned, int) { return 0; }
+// User/group stubs
+static int stub_setuid(unsigned) { return 0; }
+static int stub_setgid(unsigned) { return 0; }
+// popen/pclose stubs
+static FILE* stub_popen(const char*, const char*) { return nullptr; }
+static int   stub_pclose(FILE*)                   { return -1; }
+// Terminal stubs
+static int stub_tcgetattr(int, void*)         { errno = ENOTTY; return -1; }
+static int stub_tcsetattr(int, int, const void*) { errno = ENOTTY; return -1; }
+// malloc_usable_size — dlmalloc/newlib provides this
+static size_t stub_malloc_usable_size(void* p) { return p ? malloc_usable_size(p) : 0; }
+// Locale-variant char/string functions — ignore locale, call base version
+static int stub_isdigit_l(int c, void*)   { return isdigit(c); }
+static int stub_islower_l(int c, void*)   { return islower(c); }
+static int stub_isupper_l(int c, void*)   { return isupper(c); }
+static int stub_isxdigit_l(int c, void*)  { return isxdigit(c); }
+static int stub_tolower_l(int c, void*)   { return tolower(c); }
+static int stub_toupper_l(int c, void*)   { return toupper(c); }
+static int stub_iswalpha_l(wint_t c, void*)   { return iswalpha(c); }
+static int stub_iswblank_l(wint_t c, void*)   { return iswblank(c); }
+static int stub_iswcntrl_l(wint_t c, void*)   { return iswcntrl(c); }
+static int stub_iswdigit_l(wint_t c, void*)   { return iswdigit(c); }
+static int stub_iswlower_l(wint_t c, void*)   { return iswlower(c); }
+static int stub_iswprint_l(wint_t c, void*)   { return iswprint(c); }
+static int stub_iswpunct_l(wint_t c, void*)   { return iswpunct(c); }
+static int stub_iswspace_l(wint_t c, void*)   { return iswspace(c); }
+static int stub_iswupper_l(wint_t c, void*)   { return iswupper(c); }
+static int stub_iswxdigit_l(wint_t c, void*)  { return iswxdigit(c); }
+static wint_t stub_towlower_l(wint_t c, void*) { return towlower(c); }
+static wint_t stub_towupper_l(wint_t c, void*) { return towupper(c); }
+static int stub_strcoll_l(const char* a, const char* b, void*) { return strcoll(a, b); }
+static size_t stub_strxfrm_l(char* d, const char* s, size_t n, void*) { return strxfrm(d, s, n); }
+static size_t stub_strftime_l(char* s, size_t m, const char* f, const struct tm* t, void*) {
+    return strftime(s, m, f, t);
+}
+static int stub_wcscoll_l(const wchar_t* a, const wchar_t* b, void*) { return wcscoll(a, b); }
+static size_t stub_wcsxfrm_l(wchar_t* d, const wchar_t* s, size_t n, void*) {
+    return wcsxfrm(d, s, n);
+}
+// Math: forward to newlib (these exist but may be missing from our list)
+static double stub_acosh(double x)  { return acosh(x); }
+static double stub_asinh(double x)  { return asinh(x); }
+static double stub_atanh(double x)  { return atanh(x); }
+static double stub_log1p(double x)  { return log1p(x); }
+static double stub_expm1(double x)  { return expm1(x); }
+static double stub_difftime(time_t a, time_t b) { return difftime(a, b); }
+// fesetround — forward to newlib
+static int stub_fesetround(int r) { return fesetround(r); }
+// strptime — newlib stub (may not exist in devkitA64 newlib)
+static char* stub_strptime(const char*, const char*, struct tm*) { return nullptr; }
+// clearerr / fileno / fdopen
+static void  stub_clearerr(FILE* f)              { clearerr(f); }
+static int   stub_fileno(FILE* f)                { return (f) ? (int)(size_t)f : -1; }
+static FILE* stub_fdopen(int fd, const char* m)  { (void)fd; (void)m; return nullptr; }
+// tmpfile — forward to newlib
+static FILE* stub_tmpfile()                      { return tmpfile(); }
 
 extern void compatLog(const char* msg);
 extern void compatLogFmt(const char* fmt, ...);
@@ -1258,6 +1397,88 @@ static const ShimEntry g_shims[] = {
 
     // ── C++ runtime extras ───────────────────────────────────────────────────
     {"__cxa_finalize", (void*)+[](void*) {}},
+
+    // ── Batch 3 — unresolved from 2026-06-30 run ────────────────────────────
+    // crash reporter / signal handling
+    {"dladdr",          (void*)stub_dladdr},
+    {"sigaltstack",     (void*)stub_sigaltstack},
+    {"signal",          (void*)signal},
+    {"strsignal",       (void*)stub_strsignal},
+    {"sys_signame",     (void*)g_sys_signames},
+    // process info / environment
+    {"environ",         (void*)&environ},
+    {"fork",            (void*)stub_fork},
+    {"execve",          (void*)stub_execve},
+    {"waitpid",         (void*)stub_waitpid},
+    {"_exit",           (void*)stub__exit},
+    {"setuid",          (void*)stub_setuid},
+    {"setgid",          (void*)stub_setgid},
+    // filesystem
+    {"chdir",           (void*)stub_chdir},
+    {"realpath",        (void*)stub_realpath},
+    {"readlink",        (void*)stub_readlink},
+    {"symlink",         (void*)stub_symlink},
+    {"utimes",          (void*)stub_utimes},
+    {"isatty",          (void*)stub_isatty},
+    {"tmpfile",         (void*)stub_tmpfile},
+    // network / polling
+    {"accept",          (void*)stub_accept},
+    {"setsockopt",      (void*)stub_setsockopt},
+    {"poll",            (void*)stub_poll},
+    // stdio extras
+    {"clearerr",        (void*)stub_clearerr},
+    {"fileno",          (void*)stub_fileno},
+    {"fdopen",          (void*)stub_fdopen},
+    {"popen",           (void*)stub_popen},
+    {"pclose",          (void*)stub_pclose},
+    // terminal
+    {"tcgetattr",       (void*)stub_tcgetattr},
+    {"tcsetattr",       (void*)stub_tcsetattr},
+    // time
+    {"gmtime_r",        (void*)stub_gmtime_r},
+    {"localtime_r",     (void*)stub_localtime_r},
+    {"difftime",        (void*)stub_difftime},
+    {"strptime",        (void*)stub_strptime},
+    {"fesetround",      (void*)stub_fesetround},
+    // math
+    {"acosh",           (void*)stub_acosh},
+    {"asinh",           (void*)stub_asinh},
+    {"atanh",           (void*)stub_atanh},
+    {"log1p",           (void*)stub_log1p},
+    {"expm1",           (void*)stub_expm1},
+    // memory
+    {"malloc_usable_size", (void*)stub_malloc_usable_size},
+    // Bionic fortified wrappers
+    {"__memset_chk",    (void*)stub_memset_chk},
+    {"__strchr_chk",    (void*)stub_strchr_chk},
+    {"__FD_SET_chk",    (void*)stub___FD_SET_chk},
+    {"__FD_ISSET_chk",  (void*)stub___FD_ISSET_chk},
+    // locale-variant char classification
+    {"isdigit_l",       (void*)stub_isdigit_l},
+    {"islower_l",       (void*)stub_islower_l},
+    {"isupper_l",       (void*)stub_isupper_l},
+    {"isxdigit_l",      (void*)stub_isxdigit_l},
+    {"tolower_l",       (void*)stub_tolower_l},
+    {"toupper_l",       (void*)stub_toupper_l},
+    {"iswalpha_l",      (void*)stub_iswalpha_l},
+    {"iswblank_l",      (void*)stub_iswblank_l},
+    {"iswcntrl_l",      (void*)stub_iswcntrl_l},
+    {"iswdigit_l",      (void*)stub_iswdigit_l},
+    {"iswlower_l",      (void*)stub_iswlower_l},
+    {"iswprint_l",      (void*)stub_iswprint_l},
+    {"iswpunct_l",      (void*)stub_iswpunct_l},
+    {"iswspace_l",      (void*)stub_iswspace_l},
+    {"iswupper_l",      (void*)stub_iswupper_l},
+    {"iswxdigit_l",     (void*)stub_iswxdigit_l},
+    {"towlower_l",      (void*)stub_towlower_l},
+    {"towupper_l",      (void*)stub_towupper_l},
+    {"strcoll_l",       (void*)stub_strcoll_l},
+    {"strxfrm_l",       (void*)stub_strxfrm_l},
+    {"strftime_l",      (void*)stub_strftime_l},
+    {"wcscoll_l",       (void*)stub_wcscoll_l},
+    {"wcsxfrm_l",       (void*)stub_wcsxfrm_l},
+    // string extras that newlib provides but weren't forwarded
+    {"strspn",          (void*)strspn},
 
     // sentinel
     {nullptr, nullptr}
