@@ -66,6 +66,8 @@ typedef struct {
 #define DT_SYMENT   11
 #define DT_JMPREL   23
 #define DT_PLTREL   20
+#define DT_INIT         12
+#define DT_FINI         13
 #define DT_INIT_ARRAY    25
 #define DT_FINI_ARRAY    26
 #define DT_INIT_ARRAYSZ  27
@@ -107,6 +109,8 @@ struct LoadedSo {
     uint32_t     sym_count;
     uint64_t     strsz = 0;  // DT_STRSZ — bounds-checked in findSym against st_name
 
+    // DT_INIT: single init function, runs before DT_INIT_ARRAY on Android
+    InitFn   init_fn        = nullptr;
     // DT_INIT_ARRAY: stored here so constructors can be run after all SOs load
     InitFn*  init_arr       = nullptr;
     size_t   init_arr_count = 0;

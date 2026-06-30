@@ -67,14 +67,28 @@ void elfRunCtors(LoadedSo* so) {
     signal(SIGILL,  ctor_crash_handler);
 
     int  failed = 0, skipped = 0, ok = 0;
+
+    // DT_INIT runs before DT_INIT_ARRAY (same as Android linker order)
+    if (so->init_fn) {
+        compatLogFmt("ELF: %s: DT_INIT @%p", soname, (void*)so->init_fn);
+        s_in_ctor = true; s_ctor_sig = 0;
+        if (setjmp(s_ctor_jmp) == 0) {
+            so->init_fn();
+            s_in_ctor = false;
+            compatLog("ELF: DT_INIT OK");
+        } else {
+            s_in_ctor = false;
+            compatLogFmt("ELF: DT_INIT FAULT sig=%d — skipped", s_ctor_sig);
+        }
+    }
+
     compatLogFmt("ELF: %s: running %zu constructors", soname, so->init_arr_count);
     for (size_t k = 0; k < so->init_arr_count; k++) {
         LoadedSo::InitFn fn = so->init_arr[k];
         if (!fn || fn == (LoadedSo::InitFn)(uintptr_t)-1) { skipped++; continue; }
 
-        compatLogFmt("ELF: ctor[%zu/%zu] @%p", k + 1, so->init_arr_count, (void*)fn);
-        s_in_ctor = true;
-        s_ctor_sig = 0;
+        compatLogFmt("ELF: ctor[%zu/%zu] @%p", k+1, so->init_arr_count, (void*)fn);
+        s_in_ctor = true; s_ctor_sig = 0;
         if (setjmp(s_ctor_jmp) == 0) {
             fn();
             s_in_ctor = false;
@@ -364,6 +378,7 @@ LoadedSo* elfLoad(const char* path) {
     uint64_t rela_vaddr = 0, rela_sz = 0;
     uint64_t jmprel_vaddr = 0, jmprel_sz = 0;
     uint64_t strsz = 0, syment = sizeof(Elf64_Sym);
+    uint64_t init_fn_vaddr = 0;
     uint64_t init_arr_vaddr = 0, init_arr_sz = 0;
 
     for (int i = 0; i < ehdr->e_phnum; i++) {
@@ -384,6 +399,7 @@ LoadedSo* elfLoad(const char* path) {
                 case DT_PLTRELSZ:    jmprel_sz      = dyn->d_un.d_val; break;
                 case DT_STRSZ:       strsz          = dyn->d_un.d_val; break;
                 case DT_SYMENT:      syment         = dyn->d_un.d_val; break;
+                case DT_INIT:        init_fn_vaddr  = dyn->d_un.d_ptr; break;
                 case DT_INIT_ARRAY:  init_arr_vaddr = dyn->d_un.d_ptr; break;
                 case DT_INIT_ARRAYSZ:init_arr_sz    = dyn->d_un.d_val; break;
             }
@@ -494,6 +510,10 @@ LoadedSo* elfLoad(const char* path) {
     // ── Store DT_INIT_ARRAY for deferred constructor run ────────────────────
     // Constructors are run AFTER all SOs in the batch are loaded (via elfRunCtors),
     // so cross-library symbols are available.  Only store if JIT succeeded.
+    if (init_fn_vaddr && using_jit && this_svc_perm_code == 0) {
+        so->init_fn = (LoadedSo::InitFn)(exec_base + init_fn_vaddr);
+        compatLogFmt("ELF: DT_INIT fn deferred @%p", (void*)so->init_fn);
+    }
     if (init_arr_vaddr && init_arr_sz && using_jit && this_svc_perm_code == 0) {
         so->init_arr       = (LoadedSo::InitFn*)(exec_base + init_arr_vaddr);
         so->init_arr_count = init_arr_sz / sizeof(LoadedSo::InitFn);
