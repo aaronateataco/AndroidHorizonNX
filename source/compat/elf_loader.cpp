@@ -7,17 +7,29 @@
 #include <vector>
 #include <setjmp.h>
 #include <signal.h>
+#include <switch/arm/thread_context.h>
 
 // ─── Constructor crash recovery ───────────────────────────────────────────────
+// Override libnx's weak __libnx_exception_handler so hardware faults (data
+// aborts, instruction aborts) in game constructors longjmp back to our recovery
+// point instead of terminating the process.
 static jmp_buf        s_ctor_jmp;
 static volatile bool  s_in_ctor = false;
 static volatile int   s_ctor_sig = 0;
 
-static void ctor_crash_handler(int sig) {
+extern "C" void __libnx_exception_handler(ThreadExceptionDump* ctx) {
     if (s_in_ctor) {
-        s_ctor_sig = sig;
+        s_ctor_sig = (int)ctx->error_desc;
         longjmp(s_ctor_jmp, 1);
     }
+    // Not in a constructor — re-raise as fatal (write to exceptiondump)
+    extern ThreadExceptionDump __nx_exceptiondump;
+    __nx_exceptiondump = *ctx;
+    svcReturnFromException(0xf801);
+}
+
+static void ctor_crash_handler(int sig) {
+    if (s_in_ctor) { s_ctor_sig = sig; longjmp(s_ctor_jmp, 1); }
 }
 
 // Log helpers (shared across compat/ via extern)
