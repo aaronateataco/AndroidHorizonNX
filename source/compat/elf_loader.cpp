@@ -765,12 +765,16 @@ LoadedSo* elfLoad(const char* path) {
         // Promote code VA to Rx: UnmapOwner (removes Rw mapping) then MapOwner
         // with Perm_Rx.  Data VA is a SEPARATE CodeMemory handle never
         // transitioned — it stays Rw so data reads AND writes both succeed.
+        compatLog("SplitMap: calling UnmapOwner...");
         Result rc_u = svcControlCodeMemory(split_h_code, CodeMapOperation_UnmapOwner,
                                            code_va_base, code_jit_size, 0);
+        compatLogFmt("SplitMap: UnmapOwner returned 0x%08x", (uint32_t)rc_u);
         Result rc_x = R_SUCCEEDED(rc_u)
                     ? svcControlCodeMemory(split_h_code, CodeMapOperation_MapOwner,
                                            code_va_base, code_jit_size, Perm_Rx)
                     : rc_u;
+        if (R_SUCCEEDED(rc_u))
+            compatLogFmt("SplitMap: MapOwner(Rx) returned 0x%08x", (uint32_t)rc_x);
         this_svc_perm_code = R_SUCCEEDED(rc_x) ? 0u : (uint32_t)rc_x;
         compatLogFmt("SplitMap: code Rx %s (unmap=0x%08x map=0x%08x); data_va=%p stays Rw",
                      R_SUCCEEDED(rc_x) ? "OK" : "FAILED",
