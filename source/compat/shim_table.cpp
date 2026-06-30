@@ -185,6 +185,13 @@ static FILE* stub_tmpfile()                      { return tmpfile(); }
 extern void compatLog(const char* msg);
 extern void compatLogFmt(const char* fmt, ...);
 
+// fopen wrapper — logs failed opens so we can see what paths game code requests
+static FILE* stub_fopen(const char* path, const char* mode) {
+    FILE* f = fopen(path, mode);
+    if (!f) compatLogFmt("fopen FAIL: %s (mode=%s)", path ? path : "?", mode ? mode : "?");
+    return f;
+}
+
 // ─── __android_log_print (liblog) ────────────────────────────────────────────
 static int android_log_print(int, const char* tag, const char* fmt, ...) {
     char buf[512];
@@ -728,7 +735,7 @@ static const ShimEntry g_shims[] = {
     {"vfprintf",    (void*)vfprintf},
     {"vsprintf",    (void*)vsprintf},
     {"vsnprintf",   (void*)vsnprintf},
-    {"fopen",       (void*)fopen},
+    {"fopen",       (void*)stub_fopen},
     {"fclose",      (void*)fclose},
     {"fread",       (void*)fread},
     {"fwrite",      (void*)fwrite},

@@ -35,6 +35,15 @@ void elfRunCtors(LoadedSo* so) {
     size_t sl = so->path.rfind('/');
     const char* soname = (sl != std::string::npos)
                          ? so->path.c_str() + sl + 1 : so->path.c_str();
+
+    // libapplovin-native-crash-reporter registers real SIGSEGV/SIGBUS handlers
+    // and reads /proc/self/maps — both crash on Switch.  It's non-essential
+    // (crash reporting only), so skip its constructors entirely.
+    if (strstr(soname, "applovin") != nullptr) {
+        compatLogFmt("ELF: %s: SKIP constructors (crash-reporter, not needed)", soname);
+        return;
+    }
+
     compatLogFmt("ELF: %s: running %zu constructors", soname, so->init_arr_count);
     for (size_t k = 0; k < so->init_arr_count; k++) {
         LoadedSo::InitFn fn = so->init_arr[k];
