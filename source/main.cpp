@@ -573,6 +573,7 @@ struct App {
             SDL_Event ev;
             while (SDL_PollEvent(&ev)) {
                 if (ev.type == SDL_QUIT) quitting = true;
+                if (ev.type == SDL_JOYBUTTONDOWN && ev.jbutton.button == BTN_PLUS) quitting = true;
             }
             showProgress();
             SDL_Delay(16); // ~60fps

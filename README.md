@@ -121,9 +121,13 @@ The ELF loader now uses the SplitMap technique: two `svcCreateCodeMemory` handle
 
 All 403 JMPREL entries in the crash reporter library resolve successfully. The test log confirms `JMPREL: all 403 entries processed` and `ELF: jmprel done`.
 
-### 3. Native constructors — **ACTIVE INVESTIGATION**
+### 3. ~~SplitMap memcpy crash~~ — **RESOLVED**
 
-After JMPREL, 417 C++ constructors in `libgame.so` need to run. The launcher now logs each constructor address immediately before calling it and force-flushes to disk, so if one hangs you can see exactly which one in `compat_log.txt` (look for the last `ELF: ctor[k/417] @0x...` line with no matching `OK` or `FAULT` after it). We need a clean run showing `ELF: ctors done ok=N failed=N` to know where we stand.
+After JMPREL, the ELF loader was crashing on `memcpy(code_heap_buf, ...)` because `svcCreateCodeMemory` was called too early, making the backing buffer inaccessible before we wrote to it. Fixed: `svcCreateCodeMemory` + `svcControlCodeMemory` are now deferred until after the memcpy.
+
+### 4. Native constructors — **ACTIVE INVESTIGATION**
+
+After ELF loading, 417 C++ constructors in `libgame.so` need to run. The launcher logs each constructor address immediately before calling it and force-flushes to disk — look for the last `ELF: ctor[k/417] @0x...` line in `compat_log.txt` with no `OK` or `FAULT` after it to find which one stalls. We need a clean run showing `ELF: ctors done` to know where we stand.
 
 ### 4. Background threads not supported
 
@@ -211,6 +215,9 @@ This section gets replaced with real measured numbers once the game boots far en
 
 ### [Current Build]
 
+- [x] **SplitMap crash fixed** — root cause: `svcCreateCodeMemory` was called before `memcpy`, making the backing buffer inaccessible at userspace. Fixed by deferring `svcCreateCodeMemory` + `svcControlCodeMemory` to after the memcpy. All three `.so` files should now load past the ELF copy stage.
+- [x] **RELA/JMPREL logging dramatically reduced** — removed per-entry log lines (one `fflush` per entry on FAT32 was taking ~38 seconds for libapplovin alone). Now only unresolved symbols, WARN lines, and the end-of-table summary are logged — `applyRela` goes from ~8000 lines to ~30 per library.
+- [x] **+ button exits progress screen** — press **+** at any time during ELF loading to stop waiting and return to the APK list
 - [x] **Renamed to Android Horizon** — reflects the project's purpose (Android on HorizonOS) more clearly
 - [x] **Live animated progress screen** — loader now runs on a background libnx thread; main thread renders at ~60fps with: animated scan bar (always moving, independent of load progress), live tail of `compat_log.txt` (13 lines, colour-coded for errors/warnings), elapsed time display per stage, "still working" notice after 30s
 - [x] **Log timestamps** — every `compat_log.txt` entry prefixed with `[Xs]` seconds-since-launch
