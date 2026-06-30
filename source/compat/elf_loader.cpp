@@ -187,58 +187,6 @@ static void* resolveSymbol(const char* name) {
 // write_base: where to write relocation results (RW mapping)
 // exec_base:  address values to store in GOT entries (RX mapping)
 // These differ when using JIT dual-mapping; they're equal in the heap fallback.
-// ─── ADRP data-segment redirect ───────────────────────────────────────────────
-// Scans the code segment (write_alloc[0 .. data_alloc_off)) for ADRP instructions
-// that target the exec (RX) side of the data segment, and patches them to target
-// the write (RW) twin instead.  After jitTransitionToExecutable the patched code
-// executes from exec_alloc but computes data addresses in write_alloc — the RW
-// twin is always accessible (JitType_CodeMemory keeps rw_addr mapped permanently).
-static void patchAdrpDataRefs(uint8_t* write_alloc, const uint8_t* exec_alloc,
-                               uint64_t data_alloc_off, size_t alloc_size) {
-    if (data_alloc_off == 0 || data_alloc_off >= alloc_size) return;
-
-    uint64_t rx_base       = (uint64_t)exec_alloc;
-    uint64_t rw_base       = (uint64_t)write_alloc;
-    uint64_t rx_data_start = rx_base + data_alloc_off;
-    uint64_t rx_data_end   = rx_base + alloc_size;
-
-    uint32_t* words  = (uint32_t*)write_alloc;
-    size_t    nwords = data_alloc_off / 4;
-    int       patched = 0, skipped = 0;
-
-    for (size_t i = 0; i < nwords; i++) {
-        uint32_t insn = words[i];
-        // ADRP: bit[31]=1, bits[28:24]=0x10, bits[30:29]=immlo, bits[23:5]=immhi
-        if ((insn & 0x9F000000u) != 0x90000000u) continue;
-
-        uint64_t pc      = rx_base + (uint64_t)i * 4;
-        uint64_t pc_page = pc & ~0xfffULL;
-
-        int64_t immhi = (int64_t)((insn >> 5) & 0x7ffff);
-        int64_t immlo = (int64_t)((insn >> 29) & 3);
-        int64_t imm21 = (immhi << 2) | immlo;
-        if (imm21 & (1LL << 20)) imm21 -= (1LL << 21);  // sign-extend
-
-        uint64_t tgt_page = (uint64_t)((int64_t)pc_page + imm21 * 4096LL);
-        if (tgt_page < rx_data_start || tgt_page >= rx_data_end) continue;
-
-        uint64_t off         = tgt_page - rx_base;
-        uint64_t new_tgt_pag = rw_base + off;
-        int64_t  new_imm21   = ((int64_t)new_tgt_pag - (int64_t)pc_page) / 4096LL;
-
-        if (new_imm21 < -(1 << 20) || new_imm21 >= (1 << 20)) { ++skipped; continue; }
-
-        uint32_t nlo = (uint32_t)(new_imm21 & 3);
-        uint32_t nhi = (uint32_t)((new_imm21 >> 2) & 0x7ffff);
-        words[i] = (insn & 0x9F00001Fu) | (nlo << 29) | (nhi << 5);
-        ++patched;
-    }
-    compatLogFmt("ADRP patch: %d patched %d skipped (data_off=0x%llx rx=%p rw=%p)",
-                 patched, skipped,
-                 (unsigned long long)data_alloc_off,
-                 (void*)exec_alloc, (void*)write_alloc);
-}
-
 static void applyRela(LoadedSo* so, const Elf64_Rela* relas, size_t count,
                       uint8_t* write_base, uint8_t* exec_base,
                       uint8_t* write_alloc, size_t alloc_size,
@@ -578,14 +526,6 @@ LoadedSo* elfLoad(const char* path) {
         compatLogFmt("ELF: copying stage->JIT rw=%p size=0x%zx", (void*)write_alloc, alloc_size);
         memcpy(write_alloc, stage, alloc_size);
         compatLog("ELF: stage->JIT copy done");
-
-        // Patch ADRP instructions in code segment to redirect data-segment
-        // accesses from the exec (RX) side to the write (RW) twin, so that
-        // stores to globals/singletons succeed instead of faulting.
-        if (data_seg_vaddr != UINT64_MAX && data_seg_vaddr > min_vaddr) {
-            uint64_t data_alloc_off = data_seg_vaddr - min_vaddr;
-            patchAdrpDataRefs(write_alloc, exec_alloc, data_alloc_off, alloc_size);
-        }
     }
     free(stage);
     compatLog("ELF: stage freed");
@@ -600,6 +540,26 @@ LoadedSo* elfLoad(const char* path) {
             compatLogFmt("JIT: jitTransitionToExecutable failed: 0x%08X", exec_rc);
         } else {
             compatLog("JIT: code memory is now executable");
+            // Downgrade the data-segment pages in exec_alloc from Rx to Rw.
+            // After svcMapCodeMemory + jitTransitionToExecutable, those pages are
+            // MemType_Code (Rx).  svcSetMemoryPermission can demote them to
+            // MemType_CodeData (Rw), letting game code write to global variables
+            // at their natural exec-side addresses without any ADRP patching.
+            if (data_seg_vaddr != UINT64_MAX && data_seg_vaddr > min_vaddr) {
+                uint64_t data_off = data_seg_vaddr - min_vaddr;
+                // svcSetMemoryPermission requires page-aligned address and size.
+                // Round the start DOWN to the nearest page so we include the full
+                // page that contains the first byte of the data segment.
+                uint64_t data_off_pg  = ALIGN_DOWN(data_off, 0x1000);
+                void*    data_ptr     = exec_alloc + data_off_pg;
+                size_t   data_size_pg = alloc_size - (size_t)data_off_pg;
+                Result perm_rc = svcSetMemoryPermission(data_ptr, data_size_pg, Perm_Rw);
+                compatLogFmt("JIT: data-seg Rw: rc=0x%08X ptr=%p size=0x%zx (pg_off=0x%llx)",
+                             (uint32_t)perm_rc, data_ptr, data_size_pg,
+                             (unsigned long long)data_off_pg);
+                if (R_FAILED(perm_rc))
+                    compatLog("JIT: WARN data-seg still Rx — writes will fault");
+            }
         }
     } else {
         this_svc_perm_code = 0xD801;  // heap fallback — not executable
