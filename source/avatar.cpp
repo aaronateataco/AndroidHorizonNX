@@ -35,7 +35,7 @@ static bool fetchOnce(std::vector<uint8_t>& out) {
     curl_easy_setopt(c, CURLOPT_WRITEDATA, &out);
     curl_easy_setopt(c, CURLOPT_TIMEOUT, 10L);
     curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(c, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(c, CURLOPT_SSL_VERIFYPEER, 0L);  // no cert bundle on Switch
     CURLcode rc = curl_easy_perform(c);
     long httpCode = 0;
     curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &httpCode);

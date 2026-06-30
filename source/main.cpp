@@ -16,9 +16,8 @@
 #include "build_number.h"
 #include "avatar.h"
 
-static const char* APK_DIR       = "sdmc:/BareDroidNX/apks";
-static const char* LOG_FILE      = "sdmc:/BareDroidNX/log.txt";
-static const char* COMPAT_LOG    = "sdmc:/BareDroidNX/compat_log.txt";
+static const char* APK_DIR  = "sdmc:/BareDroidNX/apks";
+static const char* LOG_FILE = "sdmc:/BareDroidNX/log.txt";
 
 // ---------------------------------------------------------------------------
 // Layout (1280×720)
@@ -71,10 +70,13 @@ static const int BTN_MINUS = 11;
 // ---------------------------------------------------------------------------
 // Shared loader state — written by loader thread, read by main thread.
 // ---------------------------------------------------------------------------
-// Matches the ring buffer definition in loader.cpp (UILOG_N=20, UILOG_W=128)
-extern char g_ui_log[20][128];
+// Ring buffers defined in loader.cpp
+extern char g_ui_log[20][128];   // throttled UI messages (every 512 entries etc.)
 extern int  g_ui_head;
 extern int  g_ui_pct;
+// Full-detail log: every compatLog line written here — read by render thread without file I/O
+extern char g_detail_log[28][164];
+extern int  g_detail_head;
 
 // Current high-level stage string, set by progressCallback on the loader thread.
 static char g_ui_stage[80] = "Working...";
@@ -376,60 +378,23 @@ struct App {
     }
 
     // ------------------------------------------------------------------
-    // Read the last N lines of compat_log.txt from disk.
-    // Rate-limited to every 200ms so we don't thrash the SD card.
+    // Snapshot the last N lines from the in-memory detail ring buffer.
+    // The detail buffer is written by every compatLog() call on the loader
+    // thread — no file I/O, always fresh, works during silent phases too.
     // ------------------------------------------------------------------
-    void tailLog(std::vector<std::string>& out, int maxLines) {
-        static Uint32 s_last = 0;
-        static std::vector<std::string> s_cache;
-
-        Uint32 now = SDL_GetTicks();
-        if (now - s_last < 200 && !s_cache.empty()) {
-            out = s_cache;
-            return;
+    void snapDetailLog(std::vector<std::string>& out, int maxLines) {
+        int head = g_detail_head;  // sample once
+        int total = head < DETLOG_N ? head : DETLOG_N;
+        int show  = total < maxLines ? total : maxLines;
+        out.clear();
+        out.reserve(show);
+        for (int i = show - 1; i >= 0; i--) {
+            int slot = ((head - 1 - i) % DETLOG_N + DETLOG_N) % DETLOG_N;
+            if (g_detail_log[slot][0])
+                out.push_back(std::string(g_detail_log[slot]));
         }
-        s_last = now;
-
-        FILE* f = fopen(COMPAT_LOG, "r");
-        if (!f) { out = s_cache; return; }
-
-        fseek(f, 0, SEEK_END);
-        long sz = ftell(f);
-        const long READ_WINDOW = 6144;
-        long readAt = sz > READ_WINDOW ? sz - READ_WINDOW : 0;
-        fseek(f, readAt, SEEK_SET);
-
-        char buf[6400] = {};
-        int n = (int)fread(buf, 1, sizeof(buf) - 1, f);
-        fclose(f);
-        buf[n] = '\0';
-
-        s_cache.clear();
-        char* p = buf;
-        // Skip first partial line if we didn't read from the start
-        if (readAt > 0) {
-            while (*p && *p != '\n') p++;
-            if (*p == '\n') p++;
-        }
-
-        char* ls = p;
-        while (*p) {
-            if (*p == '\n') {
-                if (p > ls) {
-                    *p = '\0';
-                    s_cache.push_back(std::string(ls));
-                }
-                ls = p + 1;
-            }
-            p++;
-        }
-        if (p > ls && *ls) s_cache.push_back(std::string(ls));
-
-        while ((int)s_cache.size() > maxLines)
-            s_cache.erase(s_cache.begin());
-
-        out = s_cache;
     }
+    static const int DETLOG_N = 28;
 
     // ------------------------------------------------------------------
     // Progress screen — fully animated, called at ~60fps from main thread.
@@ -518,9 +483,9 @@ struct App {
         drawText(fSm, "live" + liveDots, {60, 180, 80, 255}, BOX_X + BOX_W - 110, y + 3);
         y += LH + 8;
 
-        // Log lines
+        // Log lines from in-memory detail buffer (written by every compatLog call)
         std::vector<std::string> logLines;
-        tailLog(logLines, N_SHOW + 4); // fetch a few extra for filtering
+        snapDetailLog(logLines, N_SHOW);
 
         const SDL_Color C_LOG      = {90,  150, 210, 255};
         const SDL_Color C_LOG_NEW  = {210, 235, 255, 255};
@@ -583,12 +548,7 @@ struct App {
     LaunchResult runLaunch(const ApkInfo& apk, bool skipInstall) {
         std::string pkg = apk.packageName.empty() ? apk.filename : apk.packageName;
 
-        // Invalidate tailLog cache so the new log appears immediately
-        // (force a fresh read on the first frame)
-        {
-            // We do this by calling tailLog with a throw-away vector; the
-            // stale cache will be replaced as soon as the new file appears.
-        }
+        // Detail log is in-memory — no cache to invalidate, always fresh
 
         // Set initial stage before thread starts so first frame looks right
         const char* verb = skipInstall ? "Launching (cached)" : "Installing + Launching";
@@ -739,6 +699,11 @@ struct App {
                 SDL_RenderCopy(rdr, avatarTex, nullptr, &dst);
             } else {
                 drawMonogram("AndroidHorizon", avX, avY, avSz);
+                // Centred "Fetching avatar..." below the placeholder
+                static const std::string FETCH = "Fetching avatar...";
+                int fw = 0, fh = 0;
+                TTF_SizeUTF8(fSm, FETCH.c_str(), &fw, &fh);
+                drawText(fSm, FETCH, C_DIM, (SW - fw) / 2, avY + avSz + 8);
             }
 
             int y = avY + avSz + 40;

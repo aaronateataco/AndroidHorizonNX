@@ -21,29 +21,52 @@ extern volatile uint32_t g_recover_esr;
 extern volatile uint64_t g_recover_pc;
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
-static FILE* g_compat_log = nullptr;
+static FILE*   g_compat_log   = nullptr;
+static uint64_t g_log_start_t = 0;   // armGetSystemTick() at launch start
 
 // Dedup state: collapse consecutive identical lines into "msg x<N>"
 static char g_log_last[512] = {};
 static int  g_log_repeat    = 0;
 
+// ─── Detail ring buffer (every compatLog line, unthrottled) ───────────────────
+// Read by the main/render thread to display live log output without file I/O.
+#define DETLOG_N  28
+#define DETLOG_W  164
+char g_detail_log[DETLOG_N][DETLOG_W] = {};
+int  g_detail_head = 0;
+
+static void detailPush(const char* line) {
+    // Prepend "[Xs] " timestamp using ticks since launch start
+    uint64_t ticks = armGetSystemTick() - g_log_start_t;
+    uint32_t secs  = (uint32_t)(ticks / armGetSystemTickFreq());
+    char entry[DETLOG_W];
+    snprintf(entry, sizeof(entry), "[%3us] %s", secs, line);
+    int i = g_detail_head % DETLOG_N;
+    memcpy(g_detail_log[i], entry, DETLOG_W);
+    g_detail_log[i][DETLOG_W - 1] = '\0';
+    ++g_detail_head;
+}
+
 static void logFlushDedup() {
-    if (!g_compat_log || g_log_repeat == 0) return;
+    if (g_log_repeat == 0) return;
+    char linebuf[560];
     if (g_log_repeat == 1) {
-        fputs(g_log_last, g_compat_log);
-        fputc('\n', g_compat_log);
+        snprintf(linebuf, sizeof(linebuf), "%s", g_log_last);
     } else {
-        char buf[540];
-        snprintf(buf, sizeof(buf), "%s  x%d", g_log_last, g_log_repeat);
-        fputs(buf, g_compat_log);
-        fputc('\n', g_compat_log);
+        snprintf(linebuf, sizeof(linebuf), "%s  x%d", g_log_last, g_log_repeat);
     }
-    fflush(g_compat_log);
+    if (g_compat_log) {
+        // Write timestamp + line to file too
+        uint64_t ticks = armGetSystemTick() - g_log_start_t;
+        uint32_t secs  = (uint32_t)(ticks / armGetSystemTickFreq());
+        fprintf(g_compat_log, "[%3us] %s\n", secs, linebuf);
+        fflush(g_compat_log);
+    }
+    detailPush(linebuf);
     g_log_repeat = 0;
 }
 
 void compatLog(const char* msg) {
-    if (!g_compat_log) return;
     if (g_log_repeat > 0 && strcmp(msg, g_log_last) == 0) {
         g_log_repeat++;
         return;
@@ -277,6 +300,7 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
 
     std::string log_path = "sdmc:/BareDroidNX/compat_log.txt";
     g_compat_log = fopen(log_path.c_str(), "w");
+    g_log_start_t = armGetSystemTick();
     compatLogFmt("launchApk: %s  pkg=%s  installed=%d",
                  apk_path.c_str(), pkg_name.c_str(), (int)already_installed);
 
