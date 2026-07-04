@@ -215,18 +215,23 @@ void* LoadedSo::findSym(const char* name) const {
 }
 
 // ─── Global symbol resolver ───────────────────────────────────────────────────
-// Searches loaded .so files first, then falls back to shim table
+// Checks our shim table FIRST so Switch-compatible implementations always win
+// over any Bionic copies embedded in libapplovin.so / libquack.so.
 static void* resolveSymbol(const char* name) {
     if (!name || !name[0]) return nullptr;
 
-    // Check already-loaded libraries (allows cross-library resolution)
+    // Shim table takes priority — our implementations override any game-library
+    // copies of pthread_*, libc functions, GLES, EGL, libandroid, etc.
+    void* shim = shimResolve(name);
+    if (shim) return shim;
+
+    // Fall back to cross-library resolution for game-specific symbols
     for (LoadedSo* so : g_loaded_sos) {
         void* p = so->findSym(name);
         if (p) return p;
     }
 
-    // Fall back to our shim table (libc, GLES, EGL, libandroid, etc.)
-    return shimResolve(name);
+    return nullptr;
 }
 
 // ─── ADRP data-segment redirect ───────────────────────────────────────────────

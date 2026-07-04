@@ -230,6 +230,11 @@ static int android_log_buf_print(int, int, const char* tag, const char* fmt, ...
 static void* g_pthread_tls[64] = {};
 static int   g_tls_key_count   = 0;
 
+// Per-key zeroed scratch buffers (512 bytes each).  Returned by pt_getspecific
+// when a slot is uninitialized, so code that doesn't null-check can read/write
+// without faulting (e.g. ios_base::Init accessing [tls+0x28]).
+static uint8_t g_tls_scratch[64][512];
+
 static int pt_mutex_init(void* m, const void*)  { memset(m, 0, 40); return 0; }
 static int pt_mutex_lock(void*)                  { return 0; }
 static int pt_mutex_unlock(void*)                { return 0; }
@@ -271,8 +276,17 @@ static int pt_key_create(int* k, void (*dtor)(void*)) {
 }
 static int pt_key_delete(int) { return 0; }
 static void* pt_getspecific(int k) {
-    void* v = (k >= 0 && k < 64) ? g_pthread_tls[k] : nullptr;
-    if (!v) compatLogFmt("pthread_getspecific(key=%d) → NULL", k);
+    if (k < 0 || k >= 64) return nullptr;
+    void* v = g_pthread_tls[k];
+    if (!v) {
+        // Return per-key scratch buffer instead of null so code that skips
+        // null-checks (e.g. Bionic libc++ accessing [tls+0x28] for locale/EH
+        // state) can read and write without faulting.  If the game later calls
+        // setspecific, pt_setspecific replaces this with the real value.
+        compatLogFmt("pthread_getspecific(key=%d) → scratch buf (first use)", k);
+        g_pthread_tls[k] = g_tls_scratch[k];
+        return g_tls_scratch[k];
+    }
     return v;
 }
 static int pt_setspecific(int k, const void* v) {
