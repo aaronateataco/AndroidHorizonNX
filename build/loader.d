@@ -178,6 +178,56 @@ loader.o: /home/aaron/Documents/Github/BareDroidNX/source/loader.cpp \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/sha1.h \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/hmac.h \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/crc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_main.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_stdinc.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_config.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_platform.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/begin_code.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/close_code.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_assert.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_atomic.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_audio.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_error.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_endian.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_mutex.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_thread.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_rwops.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_clipboard.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_cpuinfo.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_events.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_video.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_pixels.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_rect.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_surface.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_blendmode.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_keyboard.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_keycode.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_scancode.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_mouse.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_joystick.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_guid.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_gamecontroller.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_sensor.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_quit.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_gesture.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_touch.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_filesystem.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_haptic.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_hidapi.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_hints.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_loadso.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_log.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_messagebox.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_metal.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_power.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_render.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_shape.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_system.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_timer.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_version.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_locale.h \
+ /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_misc.h \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/minizip/unzip.h \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/zlib.h \
  /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/zconf.h \
@@ -361,6 +411,56 @@ loader.o: /home/aaron/Documents/Github/BareDroidNX/source/loader.cpp \
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/sha1.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/hmac.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/libnx/include/switch/crypto/crc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_main.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_stdinc.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_config.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_platform.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/begin_code.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/close_code.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_assert.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_atomic.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_audio.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_error.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_endian.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_mutex.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_thread.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_rwops.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_clipboard.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_cpuinfo.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_events.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_video.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_pixels.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_rect.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_surface.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_blendmode.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_keyboard.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_keycode.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_scancode.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_mouse.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_joystick.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_guid.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_gamecontroller.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_sensor.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_quit.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_gesture.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_touch.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_filesystem.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_haptic.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_hidapi.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_hints.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_loadso.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_log.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_messagebox.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_metal.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_power.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_render.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_shape.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_system.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_timer.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_version.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_locale.h:
+/home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/SDL2/SDL_misc.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/minizip/unzip.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/zlib.h:
 /home/aaron/.local/share/containers/storage/overlay/5092c05c9c72443b0c1023904ca3095dd98da391290c48e57581e011fb44576a/diff/opt/devkitpro/portlibs/switch/include/zconf.h:

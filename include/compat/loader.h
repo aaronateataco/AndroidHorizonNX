@@ -146,6 +146,8 @@ struct LaunchResult {
     std::string errorDetail;  // human-readable reason
     int         unresolved  = 0;  // number of unresolved ELF symbols
     uint32_t    svcPermCode = 0;  // result of svcSetMemoryPermission (0 = OK)
+    // Set when ELF loading succeeds; main thread must call runGameOnMainThread.
+    void*       game_so     = nullptr;  // LoadedSo*
 };
 
 // Progress callback invoked at each major launch stage.
@@ -175,6 +177,15 @@ void         compatUiSetPct(int pct);
 uint32_t     elfGetLastSvcPermCode();
 // Resolve a symbol across all loaded .so files, then shim table
 void*        shimResolve(const char* name);
+
+// Run JNI_OnLoad + Cocos2d-x game loop from the MAIN thread (which has SDL2's
+// EGL context active).  sdl_win is SDL_Window* for buffer swap after each frame.
+// apk_path and data_path are the strings passed to nativeSetPaths.
+// Closes compat_log when it returns.
+void runGameOnMainThread(void* game_so_ptr,
+                         void* sdl_win,
+                         const std::string& apk_path,
+                         const std::string& data_path);
 // Called from jni_env.cpp to install JNI/VM tables into compat layer
 void         jniSetup(CompatLayer* cl);
 

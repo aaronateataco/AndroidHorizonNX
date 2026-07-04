@@ -22,6 +22,7 @@ volatile bool     g_in_recover  = false;
 volatile int      g_recover_sig = 0;
 volatile uint32_t g_recover_esr = 0;
 volatile uint64_t g_recover_pc  = 0;
+volatile uint64_t g_recover_far = 0;  // Fault Address Register
 
 extern "C" void __libnx_exception_handler(ThreadExceptionDump* ctx) {
     uint32_t esr = ctx->esr;
@@ -30,6 +31,7 @@ extern "C" void __libnx_exception_handler(ThreadExceptionDump* ctx) {
         g_recover_sig = (int)ctx->error_desc;
         g_recover_esr = esr;
         g_recover_pc  = ctx->pc.x;
+        g_recover_far = ctx->far.x;
         longjmp(g_recover_jmp, 1);
     }
     extern ThreadExceptionDump __nx_exceptiondump;
@@ -121,7 +123,7 @@ void elfRunCtors(LoadedSo* so, ProgressCb cb) {
 
         compatLogFmt("ELF: ctor[%zu/%zu] @%p", k+1, n, (void*)fn);
         compatLogFlush();
-        g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0;
+        g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0; g_recover_far = 0;
         if (setjmp(g_recover_jmp) == 0) {
             fn();
             g_in_recover = false;
@@ -129,8 +131,9 @@ void elfRunCtors(LoadedSo* so, ProgressCb cb) {
             ok++;
         } else {
             g_in_recover = false;
-            compatLogFmt("ELF: ctor[%zu/%zu] FAULT sig=%d esr=0x%08x pc=%p — skipped",
-                         k + 1, n, g_recover_sig, g_recover_esr, (void*)g_recover_pc);
+            compatLogFmt("ELF: ctor[%zu/%zu] FAULT sig=%d esr=0x%08x pc=%p far=%p — skipped",
+                         k + 1, n, g_recover_sig, g_recover_esr,
+                         (void*)g_recover_pc, (void*)g_recover_far);
             failed++;
         }
 

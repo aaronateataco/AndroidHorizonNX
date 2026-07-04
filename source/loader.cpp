@@ -1,6 +1,7 @@
 #include "compat/loader.h"
 #include "compat/android.h"
 #include <switch.h>
+#include <SDL2/SDL.h>
 #include <minizip/unzip.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -19,6 +20,12 @@ extern volatile bool     g_in_recover;
 extern volatile int      g_recover_sig;
 extern volatile uint32_t g_recover_esr;
 extern volatile uint64_t g_recover_pc;
+extern volatile uint64_t g_recover_far;
+
+// Persistent path storage — launchApk stores these so ANativeActivity pointers
+// remain valid after launchApk returns (for runGameOnMainThread).
+static std::string g_base_dir_stored;
+static std::string g_apk_path_stored;
 
 // ─── Logging ──────────────────────────────────────────────────────────────────
 static FILE*   g_compat_log   = nullptr;
@@ -457,44 +464,35 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
         elfRunCtors(lso, cb);
     }
 
-    // ── 6. Set up ANativeWindow ──────────────────────────────────────────────
-    compatUiLog("Setting up ANativeWindow...");
-    compatUiSetPct(80);
-    if (cb) cb("Setting up window", "Initialising display surface...");
-    compatLog("Setting up window...");
-    ANativeWindow* win = &g_compat.window;
-    win->width  = 1280;
-    win->height = 720;
-    win->format = 1; // RGBA_8888
-    win->nwin   = nwindowGetDefault();
-
-    bool eglOk = setupEGL(win);
-    if (!eglOk) {
-        compatLog("EGL setup failed — continuing anyway (game may initialise EGL itself)");
-    }
+    // ── 6. Set up ANativeWindow (no EGL here — main thread does that) ────────
+    ANativeWindow* nwin = &g_compat.window;
+    nwin->width  = 1280;
+    nwin->height = 720;
+    nwin->format = 1; // RGBA_8888
+    nwin->nwin   = nwindowGetDefault();
 
     // ── 7. Set up ANativeActivity ────────────────────────────────────────────
-    compatUiLog("Setting up ANativeActivity...");
-    compatUiSetPct(84);
-    if (cb) cb("Setting up ANativeActivity", "Wiring Android activity callbacks...");
-    compatLog("Setting up ANativeActivity...");
+    // Store paths durably so the pointers remain valid after this function returns.
+    g_base_dir_stored  = base_dir;
+    g_apk_path_stored  = apk_path;
+
     ANativeActivity* act = &g_compat.activity;
     memset(&g_compat.callbacks, 0, sizeof(g_compat.callbacks));
     act->callbacks        = &g_compat.callbacks;
     act->vm               = (JavaVM*)g_compat.vm_outer;
     act->env              = (JNIEnv*)g_compat.env_outer;
     act->clazz            = (void*)0x4001;
-    act->internalDataPath = base_dir.c_str();
-    act->externalDataPath = base_dir.c_str();
+    act->internalDataPath = g_base_dir_stored.c_str();
+    act->externalDataPath = g_base_dir_stored.c_str();
     act->sdkVersion       = 26;
     act->instance         = nullptr;
-    act->window           = win;
+    act->window           = nwin;
 
     strncpy(g_compat.asset_mgr.base_path, asset_dir.c_str(),
             sizeof(g_compat.asset_mgr.base_path) - 1);
     act->assetManager = &g_compat.asset_mgr;
 
-    // ── 8. Scan libgame for Java_ native methods (helps diagnose JNI-only games)
+    // ── 8. Scan libgame for Java_ native methods ─────────────────────────────
     compatLog("Scanning for Java_ native methods in main .so...");
     if (so->symtab && so->strtab) {
         int jcount = 0;
@@ -502,6 +500,7 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
             const Elf64_Sym& s = so->symtab[i];
             if (s.st_shndx == SHN_UNDEF || s.st_value == 0) continue;
             if (so->strsz > 0 && (uint64_t)s.st_name >= so->strsz) continue;
+            if (so->alloc_size > 0 && s.st_value >= so->alloc_size) continue;
             const char* sname = so->strtab + s.st_name;
             if (strncmp(sname, "Java_", 5) == 0) {
                 compatLogFmt("JAVA_METHOD: %s @%p", sname,
@@ -512,164 +511,191 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
         compatLogFmt("JAVA_METHOD: %d total Java_ symbols found", jcount);
     }
 
-    // ── 9. Call JNI_OnLoad if present ────────────────────────────────────────
+    // ── 9+. Game execution runs on the MAIN thread (has SDL2 EGL context). ──
+    // Return here — main.cpp's runLaunch will call runGameOnMainThread.
+    compatUiLog("ELF loaded — handing off to main thread");
+    compatUiSetPct(95);
+    if (cb) cb("ELF loaded", "Starting game on main thread...");
+    compatLog("ELF: loading complete — game execution on main thread");
+    compatLogFlush();
+
+    result.ok      = true;
+    result.game_so = (void*)so;
+    // Note: g_compat_log stays open; runGameOnMainThread will close it.
+    return result;
+}
+
+// ─── runGameOnMainThread ─────────────────────────────────────────────────────
+// Called from the MAIN thread (SDL2's EGL context is current on this thread).
+// Captures SDL2's EGL context, runs JNI_OnLoad, nativeSetPaths, nativeInit,
+// then loops on nativeRender + eglSwapBuffers until the game faults or exits.
+// sdl_win is SDL_Window* used for buffer swap via SDL_GL_SwapWindow.
+void runGameOnMainThread(void* game_so_ptr,
+                         void* sdl_win,
+                         const std::string& apk_path,
+                         const std::string& data_path) {
+    LoadedSo* so = (LoadedSo*)game_so_ptr;
+    SDL_Window* win = (SDL_Window*)sdl_win;
+
+    // Capture SDL2's active EGL context (current on this main thread).
+    g_egl_display = eglGetCurrentDisplay();
+    g_egl_surface = eglGetCurrentSurface(EGL_DRAW);
+    g_egl_context = eglGetCurrentContext();
+    if (g_egl_display != EGL_NO_DISPLAY && g_egl_surface != EGL_NO_SURFACE &&
+        g_egl_context != EGL_NO_CONTEXT) {
+        compatLog("EGL: using SDL2 context on main thread");
+    } else {
+        compatLog("EGL: SDL2 context not current — GL calls may fail");
+    }
+    compatLogFlush();
+
+    JNIEnv* env = (JNIEnv*)g_compat.env_outer;
+    jobject obj = (jobject)(uintptr_t)0x4001;
+
+    // ── JNI_OnLoad ────────────────────────────────────────────────────────────
     typedef int32_t (*JNI_OnLoad_fn)(JavaVM**, void*);
     JNI_OnLoad_fn jni_onload = (JNI_OnLoad_fn)so->findSym("JNI_OnLoad");
     if (jni_onload) {
-        compatUiLog("JNI_OnLoad: starting...");
-        compatUiSetPct(88);
-        if (cb) cb("Calling JNI_OnLoad", "Initialising native library (check log)...");
         compatLogFmt("Calling JNI_OnLoad @%p ...", (void*)jni_onload);
-        g_in_recover = true; g_recover_sig = 0;
+        g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0; g_recover_far = 0;
         if (setjmp(g_recover_jmp) == 0) {
             int32_t ver = jni_onload((JavaVM**)g_compat.vm_outer, nullptr);
             g_in_recover = false;
             compatLogFmt("JNI_OnLoad returned: 0x%X", ver);
-            compatUiLog("JNI_OnLoad: OK");
-            if (cb) cb("JNI_OnLoad done", "Native library registered");
-            compatUiSetPct(92);
         } else {
             g_in_recover = false;
-            compatLogFmt("JNI_OnLoad FAULT sig=%d — skipped", g_recover_sig);
-            compatUiLog("JNI_OnLoad: FAULT (skipped)");
-            if (cb) cb("JNI_OnLoad faulted", "Skipping — check compat_log.txt");
+            compatLogFmt("JNI_OnLoad FAULT sig=%d esr=0x%08x pc=%p far=%p — skipped",
+                         g_recover_sig, g_recover_esr,
+                         (void*)g_recover_pc, (void*)g_recover_far);
         }
-    } else {
-        compatLog("JNI_OnLoad not found (OK for NativeActivity games)");
-        compatUiLog("No JNI_OnLoad found");
+        compatLogFlush();
     }
 
-    // ── 10. Call ANativeActivity_onCreate (NativeActivity games only) ────────
+    // ── ANativeActivity_onCreate (NativeActivity path) ────────────────────────
     typedef void (*OnCreate_fn)(ANativeActivity*, void*, size_t);
     OnCreate_fn on_create = (OnCreate_fn)so->findSym("ANativeActivity_onCreate");
-    if (!on_create) {
-        compatLog("ANativeActivity_onCreate not found — trying GameActivity entry point");
-        on_create = (OnCreate_fn)so->findSym(
-            "Java_com_google_androidgamesdk_GameActivity_initializeNativeCode");
-        if (!on_create) {
-            compatLog("No NativeActivity — attempting Cocos2d-x direct Java_ call");
-            compatUiLog("Cocos2d-x: direct Java_ mode");
-            if (cb) cb("Cocos2d-x mode", "Calling Java_ methods directly...");
-
-            JNIEnv* env = (JNIEnv*)g_compat.env_outer;
-            jobject obj = (jobject)(uintptr_t)0x4001;
-
-            typedef void (*SetPaths_fn)(JNIEnv*, jobject, jstring, jstring);
-            SetPaths_fn setPaths = (SetPaths_fn)so->findSym(
-                "Java_org_cocos2dx_lib_Cocos2dxActivity_nativeSetPaths");
-            if (setPaths) {
-                compatLogFmt("Cocos2d-x: nativeSetPaths @%p apk=%s data=%s",
-                             (void*)setPaths, apk_path.c_str(), base_dir.c_str());
-                g_in_recover = true; g_recover_sig = 0;
-                if (setjmp(g_recover_jmp) == 0) {
-                    setPaths(env, obj,
-                             (jstring)apk_path.c_str(), (jstring)base_dir.c_str());
-                    g_in_recover = false;
-                    compatLog("Cocos2d-x: nativeSetPaths OK");
-                    compatUiLog("nativeSetPaths: OK");
-                } else {
-                    g_in_recover = false;
-                    compatLogFmt("Cocos2d-x: nativeSetPaths FAULT sig=%d esr=0x%08x pc=%p", g_recover_sig, g_recover_esr, (void*)g_recover_pc);
-                    compatUiLog("nativeSetPaths: FAULT");
-                }
-            } else {
-                compatLog("Cocos2d-x: nativeSetPaths not found");
-            }
-
-            typedef void (*NativeInit_fn)(JNIEnv*, jobject, jint, jint);
-            NativeInit_fn nativeInit = (NativeInit_fn)so->findSym(
-                "Java_org_cocos2dx_lib_Cocos2dxRenderer_nativeInit");
-            if (!nativeInit)
-                nativeInit = (NativeInit_fn)so->findSym(
-                    "Java_org_cocos2dx_lib_Cocos2dxRenderer_nativeResize");
-            if (nativeInit) {
-                compatLogFmt("Cocos2d-x: nativeInit @%p 1280x720", (void*)nativeInit);
-                g_in_recover = true; g_recover_sig = 0;
-                if (setjmp(g_recover_jmp) == 0) {
-                    nativeInit(env, obj, 1280, 720);
-                    g_in_recover = false;
-                    compatLog("Cocos2d-x: nativeInit OK");
-                    compatUiLog("nativeInit: OK");
-                } else {
-                    g_in_recover = false;
-                    compatLogFmt("Cocos2d-x: nativeInit FAULT sig=%d esr=0x%08x pc=%p", g_recover_sig, g_recover_esr, (void*)g_recover_pc);
-                    compatUiLog("nativeInit: FAULT");
-                }
-            } else {
-                compatLog("Cocos2d-x: nativeInit/nativeResize not found");
-            }
-
-            typedef void (*NativeRender_fn)(JNIEnv*, jobject);
-            NativeRender_fn nativeRender = (NativeRender_fn)so->findSym(
-                "Java_org_cocos2dx_lib_Cocos2dxRenderer_nativeRender");
-            if (nativeRender) {
-                compatLogFmt("Cocos2d-x: nativeRender @%p — game loop start", (void*)nativeRender);
-                compatUiLog("nativeRender: starting game loop");
-                if (cb) cb("Running game", "Cocos2d-x nativeRender loop...");
-                int frame = 0;
-                while (appletMainLoop()) {
-                    g_in_recover = true; g_recover_sig = 0;
-                    if (setjmp(g_recover_jmp) == 0) {
-                        nativeRender(env, obj);
-                        g_in_recover = false;
-                    } else {
-                        g_in_recover = false;
-                        compatLogFmt("Cocos2d-x: nativeRender FAULT sig=%d esr=0x%08x frame=%d — stop",
-                                     g_recover_sig, g_recover_esr, frame);
-                        break;
-                    }
-                    if (g_egl_surface != EGL_NO_SURFACE)
-                        eglSwapBuffers(g_egl_display, g_egl_surface);
-                    ++frame;
-                    if (frame % 60 == 0) {
-                        char ub[48];
-                        snprintf(ub, sizeof(ub), "frame %d", frame);
-                        compatUiLog(ub);
-                    }
-                }
-                compatLogFmt("Cocos2d-x: loop done frames=%d", frame);
-            } else {
-                compatLog("Cocos2d-x: nativeRender not found");
-                compatUiLog("nativeRender: not found");
-            }
-
-            result.ok = true;
-            if (g_compat_log) { logFlushDedup(); fclose(g_compat_log); g_compat_log = nullptr; }
-            return result;
+    if (on_create) {
+        ANativeActivity* act = &g_compat.activity;
+        compatLogFmt("ANativeActivity_onCreate @%p", (void*)on_create);
+        g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0; g_recover_far = 0;
+        if (setjmp(g_recover_jmp) == 0) {
+            on_create(act, nullptr, 0);
+            g_in_recover = false;
+            compatLog("onCreate returned");
+        } else {
+            g_in_recover = false;
+            compatLogFmt("onCreate FAULT sig=%d esr=0x%08x pc=%p far=%p — skipped",
+                         g_recover_sig, g_recover_esr,
+                         (void*)g_recover_pc, (void*)g_recover_far);
         }
+        compatLogFlush();
+
+        // Deliver window if callback registered
+        ANativeActivityCallbacks* cbs = &g_compat.callbacks;
+        if (cbs->onStart)  { cbs->onStart(act); }
+        if (cbs->onResume) { cbs->onResume(act); }
+        if (cbs->onNativeWindowCreated) {
+            compatLog("onNativeWindowCreated");
+            cbs->onNativeWindowCreated(act, &g_compat.window);
+        }
+        compatLog("Entering game loop (NativeActivity)");
+        compatLogFlush();
+        // NativeActivity drives its own render loop via callbacks; we wait.
+        if (g_compat_log) { logFlushDedup(); fclose(g_compat_log); g_compat_log = nullptr; }
+        return;
     }
 
-    compatUiLog("ANativeActivity_onCreate: starting...");
-    compatUiSetPct(94);
-    if (cb) cb("Calling ANativeActivity_onCreate", "Starting game logic...");
-    compatLog("Calling ANativeActivity_onCreate...");
-    g_in_recover = true; g_recover_sig = 0;
-    if (setjmp(g_recover_jmp) == 0) {
-        on_create(act, nullptr, 0);
-        g_in_recover = false;
-        compatLog("onCreate returned");
-        compatUiLog("ANativeActivity_onCreate: returned");
+    // ── Cocos2d-x direct Java_ path ───────────────────────────────────────────
+    compatLog("No NativeActivity — Cocos2d-x direct Java_ path");
+    compatLogFlush();
+
+    typedef void (*SetPaths_fn)(JNIEnv*, jobject, jstring, jstring);
+    SetPaths_fn setPaths = (SetPaths_fn)so->findSym(
+        "Java_org_cocos2dx_lib_Cocos2dxActivity_nativeSetPaths");
+    if (setPaths) {
+        compatLogFmt("Cocos2d-x: nativeSetPaths @%p", (void*)setPaths);
+        g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0; g_recover_far = 0;
+        if (setjmp(g_recover_jmp) == 0) {
+            setPaths(env, obj, (jstring)apk_path.c_str(), (jstring)data_path.c_str());
+            g_in_recover = false;
+            compatLog("Cocos2d-x: nativeSetPaths OK");
+        } else {
+            g_in_recover = false;
+            compatLogFmt("Cocos2d-x: nativeSetPaths FAULT sig=%d esr=0x%08x pc=%p far=%p",
+                         g_recover_sig, g_recover_esr,
+                         (void*)g_recover_pc, (void*)g_recover_far);
+        }
+        compatLogFlush();
+    }
+
+    typedef void (*NativeInit_fn)(JNIEnv*, jobject, jint, jint);
+    NativeInit_fn nativeInit = (NativeInit_fn)so->findSym(
+        "Java_org_cocos2dx_lib_Cocos2dxRenderer_nativeInit");
+    if (!nativeInit)
+        nativeInit = (NativeInit_fn)so->findSym(
+            "Java_org_cocos2dx_lib_Cocos2dxRenderer_nativeResize");
+    if (nativeInit) {
+        compatLogFmt("Cocos2d-x: nativeInit @%p 1280x720", (void*)nativeInit);
+        g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0; g_recover_far = 0;
+        if (setjmp(g_recover_jmp) == 0) {
+            nativeInit(env, obj, 1280, 720);
+            g_in_recover = false;
+            compatLog("Cocos2d-x: nativeInit OK");
+        } else {
+            g_in_recover = false;
+            compatLogFmt("Cocos2d-x: nativeInit FAULT sig=%d esr=0x%08x pc=%p far=%p",
+                         g_recover_sig, g_recover_esr,
+                         (void*)g_recover_pc, (void*)g_recover_far);
+        }
+        compatLogFlush();
+    }
+
+    typedef void (*NativeRender_fn)(JNIEnv*, jobject);
+    NativeRender_fn nativeRender = (NativeRender_fn)so->findSym(
+        "Java_org_cocos2dx_lib_Cocos2dxRenderer_nativeRender");
+    if (nativeRender) {
+        compatLogFmt("Cocos2d-x: nativeRender @%p — game loop", (void*)nativeRender);
+        compatLogFlush();
+        int frame = 0;
+        while (appletMainLoop()) {
+            // Poll SDL events so + button exits
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev)) {
+                if (ev.type == SDL_QUIT) goto game_loop_done;
+                if (ev.type == SDL_JOYBUTTONDOWN && ev.jbutton.button == 10 /*PLUS*/)
+                    goto game_loop_done;
+            }
+
+            g_in_recover = true; g_recover_sig = 0; g_recover_esr = 0; g_recover_far = 0;
+            if (setjmp(g_recover_jmp) == 0) {
+                nativeRender(env, obj);
+                g_in_recover = false;
+            } else {
+                g_in_recover = false;
+                compatLogFmt("Cocos2d-x: nativeRender FAULT sig=%d esr=0x%08x pc=%p far=%p frame=%d — stop",
+                             g_recover_sig, g_recover_esr,
+                             (void*)g_recover_pc, (void*)g_recover_far, frame);
+                goto game_loop_done;
+            }
+
+            // Swap buffers (Cocos2d-x doesn't call eglSwapBuffers itself)
+            if (g_egl_display != EGL_NO_DISPLAY && g_egl_surface != EGL_NO_SURFACE)
+                eglSwapBuffers(g_egl_display, g_egl_surface);
+            else if (win)
+                SDL_GL_SwapWindow(win);
+
+            ++frame;
+            if (frame % 300 == 0) {
+                compatLogFmt("game: frame %d", frame);
+                compatLogFlush();
+            }
+        }
+        game_loop_done:
+        compatLogFmt("Cocos2d-x: loop done frames=%d", frame);
     } else {
-        g_in_recover = false;
-        compatLogFmt("ANativeActivity_onCreate FAULT sig=%d — skipped", g_recover_sig);
-        compatUiLog("onCreate: FAULT (skipped)");
+        compatLog("Cocos2d-x: nativeRender not found");
     }
 
-    // ── 10. Drive lifecycle ───────────────────────────────────────────────────
-    ANativeActivityCallbacks* cbs = &g_compat.callbacks;
-    if (cbs->onStart)  { compatLog("onStart");  cbs->onStart(act); }
-    if (cbs->onResume) { compatLog("onResume"); cbs->onResume(act); }
-    if (cbs->onNativeWindowCreated) {
-        if (cb) cb("Running game", "Delivering window to game...");
-        compatLog("onNativeWindowCreated");
-        cbs->onNativeWindowCreated(act, win);
-    }
-
-    compatLog("Entering game loop (game drives rendering via EGL)");
-    compatLog("Note: background threads are stubbed — game may appear frozen");
-
+    compatLogFlush();
     if (g_compat_log) { logFlushDedup(); fclose(g_compat_log); g_compat_log = nullptr; }
-
-    result.ok = true;
-    return result;
 }

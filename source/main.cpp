@@ -585,6 +585,14 @@ struct App {
         threadWaitForExit(&t);
         threadClose(&t);
         g_loader_ctx = nullptr;
+
+        // If game loaded OK, run it here on the main thread (SDL2's EGL context
+        // is current on this thread, so GL calls reach the screen).
+        if (ctx.result.game_so) {
+            std::string base_dir = std::string("sdmc:/AndroidHorizonNX/games/") + pkg;
+            runGameOnMainThread(ctx.result.game_so, win, ctx.apk_path, base_dir);
+        }
+
         return ctx.result;
     }
 
