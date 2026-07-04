@@ -1,21 +1,39 @@
-MIT License
-
-Copyright (c) 2026 Fascinating Pistachio
+Android Horizon NX Source Available License v1.0
+Copyright (c) 2024-2026 FascinatingPistachio (perplexipea@gmail.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+of this software and associated documentation files (the "Software"), to use,
+copy, modify, merge, publish, and distribute the Software or derivative works,
+subject to ALL of the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. ATTRIBUTION
+   All copies, forks, ports, or derivative works — whether source or binary —
+   must prominently credit "FascinatingPistachio" as the original author of
+   Android Horizon NX in any readme, about screen, credits section, or
+   equivalent user-visible location.
+
+2. NO PAYWALLING
+   The Software and any fork, port, or derivative work may NOT be placed behind
+   a paywall, subscription, paid download, or any other mechanism that requires
+   payment in exchange for access to the software itself. This prohibition
+   covers direct sales, app-store purchases, locked downloads, and any scheme
+   that conditions access on payment.
+
+3. VOLUNTARY MONETIZATION EXCEPTION
+   Notwithstanding Section 2, tip jars, donation links, and voluntary "support
+   the developer" buttons are explicitly permitted. Forks and derivative works
+   may replace the original author's tip/donation link with their own, provided
+   the attribution requirement in Section 1 is still met.
+
+4. SOURCE AVAILABILITY
+   Any publicly distributed binary or compiled form of the Software or a
+   derivative work must be accompanied by, or provide a publicly accessible
+   link to, the corresponding complete source code.
+
+5. LICENSE PRESERVATION
+   This license text must be included in all copies or substantial portions of
+   the Software and in any derivative work.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+IMPLIED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR
+OTHER LIABILITY ARISING FROM USE OF THE SOFTWARE.

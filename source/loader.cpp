@@ -14,6 +14,14 @@
 #include <setjmp.h>
 #include <stdarg.h>
 
+// ─── Fake Android TLS block ───────────────────────────────────────────────────
+// Switch homebrews have TPIDR_EL0=0 (no .tls section in the NRO).  NDK-compiled
+// code reads Bionic's thread-local state directly via `mrs xN, tpidr_el0` then
+// `ldr x8, [xN, #0x28]` — no pthread shim is involved.  We install a zeroed fake
+// TLS block before any game code runs so these accesses land in valid mapped memory.
+alignas(16) static uint8_t g_android_tls[512];      // main TLS block
+alignas(16) static uint8_t g_android_tls_sub[512];  // sub-buffer for tls[0x28]
+
 // Crash recovery shared with elf_loader.cpp and shim_table.cpp
 extern jmp_buf        g_recover_jmp;
 extern volatile bool     g_in_recover;
@@ -96,6 +104,17 @@ void compatLogFmt(const char* fmt, ...) {
     vsnprintf(buf, sizeof(buf), fmt, va);
     va_end(va);
     compatLog(buf);
+}
+
+static void androidTlsInstall() {
+    uint64_t old_tp;
+    asm volatile("mrs %0, tpidr_el0" : "=r"(old_tp));
+    compatLogFmt("AndroidTLS: old TPIDR_EL0=0x%llx — installing fake TLS @%p",
+                 (unsigned long long)old_tp, (void*)g_android_tls);
+    *(void**)(g_android_tls + 0x00) = g_android_tls;   // TLS_SLOT_SELF
+    *(void**)(g_android_tls + 0x28) = g_android_tls_sub; // slot 5: EH/locale state
+    uint64_t new_tp = (uint64_t)g_android_tls;
+    asm volatile("msr tpidr_el0, %0" :: "r"(new_tp) : "memory");
 }
 
 // ─── UI ring buffer ───────────────────────────────────────────────────────────
@@ -450,6 +469,11 @@ LaunchResult launchApk(const std::string& apk_path, const std::string& pkg_name,
 
     // ── 5c. Run constructors for all SOs (dependency order, smallest first) ──
     compatUiSetPct(58);
+    // Install fake Bionic TLS block BEFORE any game code runs.
+    // libgame.so reads directly from TPIDR_EL0 via `mrs` — our shim table cannot
+    // intercept this.  Without this, every site that touches Bionic's thread-local
+    // state (EH globals, locale, etc.) faults at virtual address 0x28.
+    androidTlsInstall();
     {
         int total_ctors = 0;
         for (LoadedSo* lso : loaded) total_ctors += (int)lso->init_arr_count;
