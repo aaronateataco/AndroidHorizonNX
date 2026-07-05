@@ -96,6 +96,23 @@ static void logFlushDedup() {
     g_log_repeat = 0;
 }
 
+// Lock-free emergency logger for crash-forensics call sites (fault handler,
+// game-loop FAULT branch). If the thread that's now crashing faulted WHILE
+// holding g_log_lock (e.g. mid-format inside a normal compatLogFmt call
+// elsewhere), the ordinary path would deadlock forever — the process just
+// hangs with nothing on disk and no further sign of life until force-quit.
+// This bypasses the mutex entirely (accepting a small risk of interleaved
+// output with a concurrent normal logger, which is fine: we're crashing).
+void compatLogRaw(const char* msg) {
+    if (g_compat_log) {
+        uint64_t ticks = armGetSystemTick() - g_log_start_t;
+        uint32_t secs  = (uint32_t)(ticks / armGetSystemTickFreq());
+        fprintf(g_compat_log, "[%3us] %s\n", secs, msg);
+        fflush(g_compat_log);
+    }
+    detailPush(msg);
+}
+
 // Force the current pending log message to disk and detail buffer immediately,
 // without waiting for the next different message to trigger the dedup flush.
 void compatLogFlush() {

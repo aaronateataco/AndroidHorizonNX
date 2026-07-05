@@ -227,35 +227,46 @@ void elfDescribePc(uint64_t pc, char* buf, size_t sz) {
 void elfLogAddrInfo(const char* tag, uint64_t addr) {
     MemoryInfo mi = {};
     u32 pageinfo = 0;
+    char buf[256];
     if (R_SUCCEEDED(svcQueryMemory(&mi, &pageinfo, addr))) {
-        compatLogFmt("%s %p: region=%p size=0x%lx type=0x%x perm=%c%c%c", tag,
-                     (void*)addr, (void*)mi.addr, (unsigned long)mi.size,
-                     (unsigned)mi.type,
-                     (mi.perm & Perm_R) ? 'r' : '-',
-                     (mi.perm & Perm_W) ? 'w' : '-',
-                     (mi.perm & Perm_X) ? 'x' : '-');
+        snprintf(buf, sizeof(buf), "%s %p: region=%p size=0x%lx type=0x%x perm=%c%c%c", tag,
+                 (void*)addr, (void*)mi.addr, (unsigned long)mi.size,
+                 (unsigned)mi.type,
+                 (mi.perm & Perm_R) ? 'r' : '-',
+                 (mi.perm & Perm_W) ? 'w' : '-',
+                 (mi.perm & Perm_X) ? 'x' : '-');
     } else {
-        compatLogFmt("%s %p: svcQueryMemory failed", tag, (void*)addr);
+        snprintf(buf, sizeof(buf), "%s %p: svcQueryMemory failed", tag, (void*)addr);
     }
+    // Raw (lock-free) — this runs from crash-forensics call sites where the
+    // crashing thread may already hold the normal logger's mutex.
+    compatLogRaw(buf);
 }
 
 // Last chance to get the crash PC on disk before svcReturnFromException kills
 // the process. Runs on the exception stack; must not fault again (guard flag).
+// Uses compatLogRaw (lock-free) throughout: if the crashing thread died while
+// holding g_log_lock inside an ordinary compatLogFmt call, the normal path
+// would deadlock forever here, and the process would just hang with nothing
+// on disk instead of recording the fault.
 static void logUnrecoveredFault(ThreadExceptionDump* ctx) {
     static bool logged = false;
     if (logged) return;
     logged = true;
-    compatLogFmt("UNRECOVERED FAULT desc=0x%x esr=0x%08x pc=%p far=%p lr=%p sp=%p",
-                 (unsigned)ctx->error_desc, ctx->esr, (void*)ctx->pc.x, (void*)ctx->far.x,
-                 (void*)ctx->lr.x, (void*)ctx->sp.x);
+    char buf[256];
+    snprintf(buf, sizeof(buf), "UNRECOVERED FAULT desc=0x%x esr=0x%08x pc=%p far=%p lr=%p sp=%p",
+             (unsigned)ctx->error_desc, ctx->esr, (void*)ctx->pc.x, (void*)ctx->far.x,
+             (void*)ctx->lr.x, (void*)ctx->sp.x);
+    compatLogRaw(buf);
     char where[256];
     elfDescribePc(ctx->pc.x, where, sizeof(where));
-    compatLogFmt("UNRECOVERED FAULT at %s", where);
+    snprintf(buf, sizeof(buf), "UNRECOVERED FAULT at %s", where);
+    compatLogRaw(buf);
     elfDescribePc(ctx->lr.x, where, sizeof(where));
-    compatLogFmt("UNRECOVERED FAULT lr in %s", where);
+    snprintf(buf, sizeof(buf), "UNRECOVERED FAULT lr in %s", where);
+    compatLogRaw(buf);
     elfLogAddrInfo("UNRECOVERED FAULT pc", ctx->pc.x);
     elfLogAddrInfo("UNRECOVERED FAULT far", ctx->far.x);
-    compatLogFlush();
 }
 
 // ─── LoadedSo::findSym ────────────────────────────────────────────────────────

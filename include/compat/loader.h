@@ -199,6 +199,12 @@ void         jniSetup(CompatLayer* cl);
 // the game's registered Java_ native callbacks.
 void*        compatFindGameSym(const char* name);
 
+// Lock-free logger for crash-forensics paths only (see loader.cpp) — never
+// use this for normal logging, it can interleave with concurrent compatLog
+// calls. Exists so a fault can always be recorded even if the crashing
+// thread died while holding the normal logger's mutex.
+void         compatLogRaw(const char* msg);
+
 // UserDefault persistence (jni_env.cpp): loaded before nativeInit, saved on
 // every UserDefault.flush and at game exit.
 void jniUserDefaultsLoad(const char* path);
@@ -218,6 +224,7 @@ bool  compatAudioMusicPlaying();
 void  compatAudioPreloadEffect(const char* path);
 void  compatAudioUnloadEffect(const char* path);
 int   compatAudioPlayEffect(const char* path, bool loop, float gain = 1.0f);
+void  compatAudioSetEffectVolume(int id, float vol);
 void  compatAudioStopEffect(int id);
 void  compatAudioPauseEffect(int id);
 void  compatAudioResumeEffect(int id);

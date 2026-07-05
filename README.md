@@ -8,7 +8,7 @@
 
 [![License: Source Available](https://img.shields.io/badge/License-Source__Available-orange.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/Aaronateataco/AndroidHorizonNX?style=social)](https://github.com/Aaronateataco/AndroidHorizonNX/stargazers)
-[![Status](https://img.shields.io/badge/status-pre--alpha-red.svg)](#status)
+[![Status](https://img.shields.io/badge/status-playable-brightgreen.svg)](#status)
 [![Built with Claude AI](https://img.shields.io/badge/built%20with-Claude%20AI-orange.svg)](https://anthropic.com)
 [![Platform](https://img.shields.io/badge/platform-Nintendo%20Switch-red.svg)](#)
 
@@ -48,35 +48,39 @@ Our test target is **Hill Climb Racing 1.x** by Fingersoft — a simple 2D physi
 
 ### What We've Achieved So Far
 
-**Hill Climb Racing boots and renders on real hardware.** The Fingersoft logo animates, the loading screen runs to completion, the game enters its main menu logic and starts preloading menu music and sound effects. That's real Android NDK game code rendering through switch-mesa on Horizon OS.
+**Hill Climb Racing is playable on real Switch hardware.** Not "boots" — playable: touch-steering the car up the hill, engine and music audio, a locked 60 fps, in-game HUD, coins and gems. This is real Android NDK game code, unmodified, running directly on the Tegra X1 through switch-mesa — no Android OS anywhere in the loop.
 
 The full pipeline that works today:
 
 - The NRO launches from hbmenu (or an application-mode forwarder) with a themed APK browser UI
 - APK extraction — native libraries and assets unpacked from the `.apk` onto the SD card
 - All three ELF binaries (`libapplovin-native-crash-reporter.so`, `libquack.so`, `libgame.so`) load, relocate, and link against the shim table with **zero unresolved symbols**
-- All **417 native C++ constructors** run clean (the fix: JIT data pages needed to be flipped back to RW after the executable transition)
-- `JNI_OnLoad` runs, `Java_` entry points are discovered, `nativeInit` completes, and the render loop drives `nativeRender` at roughly **18 fps** in the menu
-- The fake JNI layer answers hundreds of thousands of calls (UserDefaults, market queries, AES encrypt/decrypt passthrough, audio engine hooks)
+- All **417 native C++ constructors** run clean, `JNI_OnLoad` completes, and real libnx threads run the game's background asset loader alongside the main render/game thread
+- **Touch input** drives the car (steering/gas/brake) via the game's own registered touch natives — this is genuinely playable, not just rendering
+- **Audio works** — engine sound, music, and effects via a custom SDL2_mixer backend reading OGG/MP3/Opus/FLAC straight from the APK's assets
+- **A locked 60 fps** in normal play
+- The fake JNI layer answers hundreds of thousands of calls (UserDefaults, market queries, AES encrypt/decrypt passthrough, audio engine hooks, real Switch connectivity status)
 - Live on-screen log feed during loading, full diagnostics in `sdmc:/AndroidHorizonNX/compat_log.txt`, and **automatic screenshots** of key moments saved to `sdmc:/AndroidHorizonNX/screenshots/`
-- Crash forensics: symbolized abort/exit backtraces, unrecovered-fault PC capture, and the game's own debug output routed into the log
+- Crash forensics: symbolized abort/exit backtraces with full frame-pointer backtraces, unrecovered-fault PC/region capture, and the game's own debug output routed into the log
 
-The journey so far, each root-caused on real hardware: JIT data pages needed RW after the executable transition (417 ctor faults) → `std::random_device` aborted because `/dev/urandom` doesn't exist (now served by the Switch CSRNG) → the asset-loader thread froze the game because `pthread_create` ran it inline (threads are real libnx threads now). As of 0.1.59 the game reaches its **Terms-of-Service screen fully loaded and rendering**, and the build adds touch input and SDL2_mixer audio — the first potentially *playable* build.
+**Known issues from hardware playtesting (see [Current Blockers](#current-blockers)):** the **Shop** screen crashes back out to the launcher, and save persistence needs another confirmed round-trip test (the mechanism is implemented and the log shows it loading/saving, but a full-restart verification is still outstanding).
+
+The road here, each step root-caused on real hardware: JIT data pages needed RW after the executable transition (417 ctor faults) → `std::random_device` aborted because `/dev/urandom` doesn't exist (now served by the Switch CSRNG) → the asset-loader thread froze the game because `pthread_create` ran it inline (now real libnx threads) → a vorbis ABI mismatch corrupted the heap on the first sound effect (now uses the Tremor decoder SDL2_mixer actually expects) → an async Java callback (`fetchCountryCode`) left the post-EULA screen spinning forever (now answered immediately) → the engine sound played at full volume forever because its per-channel volume control was silently dropped (now wired through).
 
 ---
 
 ## Screenshots
 
-Android Horizon captures these **automatically on real hardware** — the launcher saves PNGs of each screen to `sdmc:/AndroidHorizonNX/screenshots/`, and the game loop snapshots the GL framebuffer at milestone frames (30 / 300 / 900) to prove what actually rendered. Copy them from the SD card into `docs/screenshots/` to update this section.
+**Every screenshot below was captured automatically by Android Horizon itself, on real Switch hardware** — the launcher saves a PNG of each UI screen to `sdmc:/AndroidHorizonNX/screenshots/`, and the game loop snapshots the actual GL framebuffer at milestone frames to prove what really rendered. None of these are mockups or emulator captures.
 
 | | |
 |---|---|
 | ![APK browser](docs/screenshots/ui_menu.png) | ![Loading screen](docs/screenshots/ui_loading.png) |
 | *APK browser — starfield, planet horizon, HOS button glyphs* | *Live loading screen with real-time compat log* |
-| ![Fingersoft splash](docs/screenshots/game_frame30.png) | ![Game loading screen](docs/screenshots/game_frame300.png) |
-| *Fingersoft splash animating (game frame 30)* | *Hill Climb Racing loading screen rendering on Horizon OS (frame 300)* |
-| ![Terms of Service screen](docs/screenshots/game_frame900.png) | |
-| *Fully loaded and interactive — the game's Terms of Service screen (frame 900)* | |
+| ![Launch result screen](docs/screenshots/ui_result.png) | ![Fingersoft splash](docs/screenshots/game_frame30.png) |
+| *Launch diagnostics — confirms a clean load* | *Fingersoft splash animating (game frame 30)* |
+| ![Game loading screen](docs/screenshots/game_frame300.png) | ![Gameplay — driving up the hill](docs/screenshots/game_frame900.png) |
+| *Hill Climb Racing loading screen rendering on Horizon OS (frame 300)* | ***Actual gameplay*** *— touch-steering the jeep, live HUD, coins & gems, all on Switch* |
 
 ---
 
@@ -149,21 +153,33 @@ After JMPREL, the ELF loader was crashing on `memcpy(code_heap_buf, ...)` becaus
 
 Root cause: `jitTransitionToExecutable` made the entire JIT region RX, including the data segment, so the very first constructor writing a C++ global hit a permission fault. Fix: data-segment pages are flipped back to RW after the executable transition, matching the Android linker's layout. `ctors done ok=417 failed=0`.
 
-### 5. Game calls `abort()` after ~165s — **ACTIVE INVESTIGATION**
+### 5. ~~Game calls `abort()` after ~165s~~ — **RESOLVED**
 
-The game boots, renders its splash + loading screen, enters menu logic — then deliberately aborts right after its daily-missions bookkeeping. The symbolized caller sits in libc++'s `system_error` machinery, i.e. a `-fno-exceptions` build turning `__throw_system_error` into `abort()`. The current build logs a full symbolized backtrace at abort, captures the game's stderr, and implements `getrandom` (a prime suspect — `std::random_device` has no entropy source on Switch by default).
+Root cause: `std::random_device`'s constructor opens `/dev/urandom`, which doesn't exist on Horizon OS; the `-fno-exceptions` build turns that failure into an instant `abort()`. Fixed by serving `/dev/urandom` as a virtual file backed by the Switch's hardware RNG.
 
-### 6. No audio yet
+### 6. ~~No audio~~ — **RESOLVED**
 
-Cocos2d-x SimpleAudioEngine routes all sound through JNI to Java-side `Cocos2dxSound`/`Cocos2dxMusic`, which are no-op stubs. The calls are logged (you can see every `preloadEffect`/`playBackgroundMusic` in the compat log) — actually playing the assets via SDL/audren is a planned phase.
+A custom SDL2_mixer backend now serves every SimpleAudioEngine JNI call — background music and sound effects (OGG/MP3/Opus/FLAC) decode straight from the extracted APK assets. Per-channel effect volume (used for the engine sound) is wired through; per-channel *pitch/rate* is not — SDL_mixer has no API for changing an individual channel's playback speed without a full custom resampling engine, so the engine note doesn't rise and fall with RPM yet (volume does).
 
-### 7. Background threads run synchronously
+### 7. ~~Background threads run synchronously~~ — **RESOLVED**
 
-`pthread_create` executes the thread function inline on the calling thread. This unblocks init-wait patterns, but long-running worker loops would stall the game. Real threads via libnx are a planned phase.
+`pthread_create` now spawns real libnx threads (pinned off the render core), with real mutexes/condvars/semaphores/rwlocks backing the game's synchronization primitives.
 
-### 8. Touch input not delivered
+### 8. ~~Touch input not delivered~~ — **RESOLVED**
 
-The game renders but can't be played yet — touchscreen events aren't delivered through `AInputQueue` yet. Next major feature after the abort is fixed.
+Confirmed on hardware: SDL finger events drive the game's own touch natives, and the car is fully steerable.
+
+### 9. Shop screen crashes back to the launcher — **ACTIVE INVESTIGATION**
+
+Opening the in-game Shop crashes out to the Android Horizon menu. No fault or abort was captured in the log from the crash session (the log simply stops mid-stream with no exit marker), which pointed at a possible deadlock in the crash-forensics logger itself: if the crashing thread happened to fault while already holding the log's mutex (e.g. mid-format inside an ordinary log call), the old fault handler would try to take that same mutex to report the crash and hang forever — a real bug, now fixed with a lock-free emergency logger for exactly this scenario. The Shop is also the most network/IAP-heavy screen, and until this build `isNetworkAvailable` always claimed "online" regardless of the Switch's actual connection — an offline Switch reporting itself online could easily send the game into a real network call that has no chance of succeeding. Both fixes are in; needs a fresh test + log to confirm.
+
+### 10. Save persistence — needs a confirmed round-trip test
+
+The UserDefault store now loads from and saves to `<game>/userdefaults.bin` (ints, floats, bools, strings), and the compat log shows it loading and saving correctly during play. However this hasn't yet been confirmed by a full app-restart-and-relaunch test on hardware, so treat it as "implemented, not yet verified" rather than "working."
+
+### 11. One game session per app launch
+
+Launching a second game session in the same Android Horizon process reads garbage ("not an ARM binary") — leftover JIT memory regions and threads from the first session aren't unloaded. Currently guarded with an on-screen notice instead of a crash; a real unload path is future work.
 
 ---
 
@@ -171,11 +187,11 @@ The game renders but can't be played yet — touchscreen events aren't delivered
 
 We're testing the `.apk` release of **Hill Climb Racing 1.67.0** specifically — the current Play Store release ships as a `.xapk`. Android Horizon's APK parser only understands plain `.apk` files right now, so `.xapk` support is out of scope until a later phase.
 
-First real measured numbers from hardware:
+Measured numbers from hardware:
 
-- **~18 fps** in the menu/loading phase (300 frames in ~17 s), unoptimized — everything runs on one thread and GLES goes through switch-mesa rather than a native Android GPU driver
-- **~143 s** for the game's `nativeInit` (its loading screen) — dominated by first-time asset loading and tens of thousands of logged JNI UserDefault calls; log throttling and asset caching should cut this substantially
-- Theoretical ceiling remains a locked 60 FPS — Hill Climb Racing was tuned for 2012-era phones far weaker than the Tegra X1. Performance work starts after the game is stable and playable.
+- **A locked 60 fps during actual gameplay** — the theoretical ceiling is also the measured result. (Earlier builds measured ~18 fps in the menu before a logging bottleneck was found and fixed — see the 0.1.65 changelog entry — real gameplay performance is native-class.)
+- Loading time has come down substantially since the early ~143 s measurement, once JNI log spam (thousands of save-key reads, each fsyncing to the SD card) was throttled — see 0.1.65.
+- Hill Climb Racing was tuned for 2012-era phones far weaker than the Tegra X1, so there's little pressure on performance work right now; focus is on correctness (Shop crash, save verification) over speed.
 
 ---
 
@@ -206,21 +222,26 @@ First real measured numbers from hardware:
 - [x] **Game boots and renders** — splash animation, full loading screen, menu logic, ~18 fps
 - [x] **Crash forensics** — symbolized abort/exit backtraces, unrecovered-fault PC capture, game stderr + debug strings routed to compat log
 - [x] **Automatic screenshots** — launcher screens + GL framebuffer at milestone frames saved to `sdmc:/AndroidHorizonNX/screenshots/`
-- [ ] Fix the ~165s `abort()` (libc++ `__throw_system_error` path — backtrace instrumentation in place)
-- [x] **Touch input delivered** — SDL finger events → Cocos2dxRenderer touch natives (1:1 coords); B button → Android BACK key
-- [x] **Audio playback** — SDL2_mixer backend for SimpleAudioEngine (music + effects, OGG/MP3/Opus/FLAC)
+- [x] **Fixed the ~165s `abort()`** — root cause `/dev/urandom` missing on Horizon OS, served by the Switch CSRNG
+- [x] **Touch input delivered** — SDL finger events → Cocos2dxRenderer touch natives (1:1 coords); B button → Android BACK key; **confirmed steering the car on hardware**
+- [x] **Audio playback** — SDL2_mixer backend for SimpleAudioEngine (music + effects, OGG/MP3/Opus/FLAC); **confirmed working on hardware** (engine, music)
+- [x] **GAME IS PLAYABLE** — driving, touch, audio, 60fps, confirmed on Switch hardware
+- [ ] Shop screen crash (active investigation — see Current Blockers #9)
+- [ ] Confirm save persistence survives a full app restart
 
 ### Phase 1 — Touch input
 
-- [ ] Map Switch touchscreen events to `AInputQueue` touch events delivered to the game
+- [x] Map Switch touchscreen events to the game's touch natives (direct `Java_...nativeTouches*` calls rather than the `AInputQueue`/`ALooper` path — simpler and confirmed working)
 - [x] Docked-mode detection — footer shows warning when not in handheld mode
 
 ### Phase 2 — Stability
 
-- [ ] Real `pthread` support using libnx `Thread` (for games with background render/physics threads)
+- [x] **Real `pthread` support using libnx `Thread`** — real threads, real mutex/condvar/rwlock/semaphore backing
 - [x] Load all `.so` files in dependency order (smallest-first)
 - [ ] Implement `dl_iterate_phdr` so stack unwinders work
-- [ ] Save/load state via proper `internalDataPath` on the SD card
+- [x] **Save/load state** — UserDefaults persist to `<game>/userdefaults.bin` (needs a confirmed restart test, see blockers)
+- [ ] Real `.so`/JIT unload so a second game session doesn't require restarting the app
+- [ ] Engine/effect pitch control (needs a custom audio resampler — SDL_mixer has no per-channel rate API)
 
 ### Phase 3 — Polish
 
@@ -244,6 +265,13 @@ First real measured numbers from hardware:
 ## Changelog
 
 > Most recent first.
+
+### 0.1.69 — Engine volume fix + crash-logger deadlock hardening
+
+- [x] **Fixed the engine sound never stopping/fading** — the game continuously calls `setEffectVolume(id, volume)` to ramp the looping engine sound with RPM and to silence it on crash/pause/menu; this call was falling through to the generic no-op logger and being silently dropped, so the engine played at its initial volume forever. Now wired to a real per-channel `Mix_Volume`. (`setEffectRate`, the pitch counterpart, is a deliberate no-op — SDL_mixer has no per-channel playback-rate API without a custom resampler.)
+- [x] **Real Switch connectivity reported to the game** — `isNetworkAvailable` now queries `nifm` instead of always claiming online. Matters for the Shop investigation: an offline Switch previously told the game it *was* online, which could push it into a real (doomed) network call.
+- [x] **Crash-logger deadlock fixed** — the Shop-crash log had no fault/abort line at all, just silence. Root cause: if a thread faults while it already holds the normal logger's mutex (e.g. mid-format inside an ordinary log call), the old fault handler tried to take that same mutex to report the crash — permanent deadlock, no diagnostics, looks like a frozen game until force-quit. Added a lock-free emergency logger used only by the crash-forensics paths, so a fault can now always be recorded no matter what the crashing thread was doing.
+- [x] Added the driving-gameplay and launch-result screenshots to this README — first real in-game screenshots from hardware.
 
 ### 0.1.68 — IT'S PLAYABLE + persistent saves
 

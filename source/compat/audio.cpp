@@ -137,6 +137,16 @@ int compatAudioPlayEffect(const char* p, bool loop, float gain) {
     return ch;
 }
 
+// Per-channel volume for an already-playing effect (the looping engine sound
+// rides this continuously as RPM changes, and it's how the game silences the
+// engine on crash/pause — must be wired for the engine to ever go quiet).
+void compatAudioSetEffectVolume(int ch, float vol) {
+    AudioLock al;
+    if (!g_inited || ch < 0) return;
+    if (vol < 0) vol = 0; else if (vol > 1) vol = 1;
+    Mix_Volume(ch, (int)(g_fx_vol * vol * MIX_MAX_VOLUME));
+}
+
 void compatAudioStopEffect(int ch)   { AudioLock al; if (g_inited && ch >= 0) Mix_HaltChannel(ch); }
 void compatAudioPauseEffect(int ch)  { AudioLock al; if (g_inited && ch >= 0) Mix_Pause(ch); }
 void compatAudioResumeEffect(int ch) { AudioLock al; if (g_inited && ch >= 0) Mix_Resume(ch); }

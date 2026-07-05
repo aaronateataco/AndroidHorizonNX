@@ -442,6 +442,24 @@ static void s_CallStaticVoidMethodV(JNIEnv*, jclass, jmethodID mid, va_list args
     if (strcmp(e->name, "stopEffect") == 0)      { compatAudioStopEffect(va_arg(args, int)); return; }
     if (strcmp(e->name, "pauseEffect") == 0)     { compatAudioPauseEffect(va_arg(args, int)); return; }
     if (strcmp(e->name, "resumeEffect") == 0)    { compatAudioResumeEffect(va_arg(args, int)); return; }
+    // setEffectVolume(id, vol) — per-channel volume for a SPECIFIC playing
+    // effect (distinct from the global setEffectsVolume above). HCR calls this
+    // continuously to ramp the looping engine sound with RPM and to fade/mute
+    // it on crash or pause. This was falling through to the generic no-op
+    // logger, so the engine sound never changed volume or stopped — reported
+    // as "engine noise constantly playing even after dying / in menus".
+    if (strcmp(e->name, "setEffectVolume") == 0) {
+        int id     = va_arg(args, int);
+        double vol = va_arg(args, double);
+        compatAudioSetEffectVolume(id, (float)vol);
+        return;
+    }
+    // setEffectRate(id, rate) — playback-rate/pitch change for a specific
+    // effect (engine pitch rising with RPM). Not implemented: SDL_mixer's
+    // Mix_Chunk playback rate isn't adjustable per-channel without a custom
+    // resampling engine bypassing SDL_mixer's mixer entirely. No-op for now
+    // (silent — this one is expected/logged in README, not a bug to chase).
+    if (strcmp(e->name, "setEffectRate") == 0) { va_arg(args, int); va_arg(args, double); return; }
     if (strcmp(e->name, "stopAllEffects") == 0)  { compatAudioStopAllEffects(); return; }
     if (strcmp(e->name, "pauseAllEffects") == 0) { compatAudioPauseAllEffects(); return; }
     if (strcmp(e->name, "resumeAllEffects") == 0){ compatAudioResumeAllEffects(); return; }
