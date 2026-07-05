@@ -19,7 +19,10 @@ ROMFS		:=	romfs
 
 APP_TITLE	:= Android Horizon
 APP_AUTHOR	:= aaronworld.uk
-APP_VERSION	:= 0.1.0
+# NACP version (shown by hbmenu): 0.1.<build number>. The build number is
+# bumped by the outer make before the inner make (which creates the .nacp)
+# re-parses this file, so the inner make always sees the fresh number.
+APP_VERSION	:= 0.1.$(shell cat $(TOPDIR)/build_number.txt 2>/dev/null || echo 0)
 
 #---------------------------------------------------------------------------------
 ARCH	:=	-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
@@ -112,8 +115,9 @@ $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@NEW=$$(( $$(cat $(CURDIR)/build_number.txt 2>/dev/null || echo 0) + 1 )); \
 	 echo $$NEW > $(CURDIR)/build_number.txt; \
-	 printf '#pragma once\n#define BUILD_NUMBER %d\n#define BUILD_VERSION "testing-alpha-%d"\n' $$NEW $$NEW \
+	 printf '#pragma once\n#define BUILD_NUMBER %d\n#define BUILD_VERSION "v0.1.%d testing-alpha"\n' $$NEW $$NEW \
 	   > $(CURDIR)/include/build_number.h
+	@rm -f $(CURDIR)/$(TARGET).nacp  # force regen so the NACP version tracks the build number
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 clean:

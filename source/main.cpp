@@ -4,6 +4,7 @@
 #include <SDL2/SDL_ttf.h>
 #include <sys/stat.h>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <algorithm>
@@ -130,6 +131,13 @@ struct App {
 
     SDL_Texture* avatarTex = nullptr;
 
+    // ── Scenery: cached sky/planet texture + animated starfield ─────────
+    SDL_Texture* bgTex = nullptr;
+    TTF_Font*    fBtn  = nullptr;  // NintendoExt shared font: HOS button glyphs
+    struct Star { float x, y; int sz; float phase, speed; };
+    std::vector<Star> stars;
+    float selAnimY = -1.0f;        // eased focus-card position (borealis-style)
+
     // ------------------------------------------------------------------
     TTF_Font* openFont(int ptsize) {
         plInitialize(PlServiceType_User);
@@ -145,6 +153,20 @@ struct App {
         TTF_Font* f = TTF_OpenFont("romfs:/fonts/DejaVuSans.ttf", ptsize);
         if (f) { logMsg("  font: romfs DejaVuSans"); return f; }
         logSDL("  romfs font open failed");
+        return nullptr;
+    }
+
+    // NintendoExt shared font: circled A/B/X/Y/+/- button glyphs (U+E0E0…).
+    // Returns nullptr on failure — callers fall back to plain-text hints.
+    TTF_Font* openExtFont(int ptsize) {
+        PlFontData fd = {};
+        if (plGetSharedFontByType(&fd, PlSharedFontType_NintendoExt) == 0 && fd.size > 8) {
+            SDL_RWops* rw = SDL_RWFromConstMem(
+                (const uint8_t*)fd.address + 8, (int)fd.size - 8);
+            TTF_Font* f = TTF_OpenFontRW(rw, 1, ptsize);
+            if (f) { logMsg("  font: NintendoExt glyphs"); return f; }
+        }
+        logMsg("  NintendoExt font unavailable — text hints");
         return nullptr;
     }
 
@@ -185,6 +207,9 @@ struct App {
         fSm = openFont(17);
         if (!fLg || !fSm) { logMsg("Font load failed"); logClose(); return false; }
         if (!fMd) fMd = fSm;
+        fBtn = openExtFont(22);
+
+        buildBackground();
 
         if (SDL_NumJoysticks() > 0) {
             joy = SDL_JoystickOpen(0);
@@ -198,7 +223,9 @@ struct App {
     void cleanup() {
         avatarStop();
         if (avatarTex) SDL_DestroyTexture(avatarTex);
+        if (bgTex) SDL_DestroyTexture(bgTex);
         for (auto* t : icons) if (t) SDL_DestroyTexture(t);
+        if (fBtn) TTF_CloseFont(fBtn);
         if (fLg)  TTF_CloseFont(fLg);
         if (fMd && fMd != fSm) TTF_CloseFont(fMd);
         if (fSm)  TTF_CloseFont(fSm);
@@ -233,6 +260,159 @@ struct App {
         SDL_RenderCopy(rdr, tex, nullptr, &dst);
         SDL_DestroyTexture(tex);
         return w;
+    }
+
+    // ── Scenery ─────────────────────────────────────────────────────────
+    // The icon look: deep-space gradient sky, twinkling stars, and a green
+    // planet horizon rising from the bottom edge with a glowing rim.
+    // Sky + planet are static → rendered once into bgTex; stars animate live.
+
+    static SDL_Color lerpCol(SDL_Color a, SDL_Color b, float t) {
+        return { (Uint8)(a.r + (b.r - a.r) * t), (Uint8)(a.g + (b.g - a.g) * t),
+                 (Uint8)(a.b + (b.b - a.b) * t), 255 };
+    }
+
+    void fillCircle(int cx, int cy, int r, SDL_Color c) {
+        SDL_SetRenderDrawColor(rdr, c.r, c.g, c.b, c.a);
+        for (int dy = -r; dy <= r; dy++) {
+            int hw = (int)sqrtf((float)(r * r - dy * dy));
+            SDL_Rect row = {cx - hw, cy + dy, hw * 2, 1};
+            SDL_RenderFillRect(rdr, &row);
+        }
+    }
+
+    static constexpr float PLANET_R    = 2200.0f;  // huge circle → gentle curve
+    static constexpr int   PLANET_BUMP = 130;      // rim height above bottom edge
+
+    void buildBackground() {
+        // Starfield layout (deterministic so it doesn't reshuffle per launch)
+        stars.clear();
+        uint32_t rng = 0x5EED5EED;
+        auto rnd = [&rng]() { rng = rng * 1664525u + 1013904223u; return rng >> 8; };
+        for (int i = 0; i < 110; i++) {
+            Star s;
+            s.x     = (float)(rnd() % SW);
+            s.y     = (float)(rnd() % (SH - PLANET_BUMP - 80));
+            s.sz    = (rnd() % 100 < 16) ? 2 : 1;
+            s.phase = (rnd() % 628) / 100.0f;
+            s.speed = 0.35f + (rnd() % 100) / 90.0f;
+            stars.push_back(s);
+        }
+
+        bgTex = SDL_CreateTexture(rdr, SDL_PIXELFORMAT_RGBA8888,
+                                  SDL_TEXTUREACCESS_TARGET, SW, SH);
+        if (!bgTex) { logSDL("bg texture failed — flat background"); return; }
+        SDL_SetRenderTarget(rdr, bgTex);
+        SDL_SetRenderDrawBlendMode(rdr, SDL_BLENDMODE_BLEND);
+
+        // Sky: near-black zenith → icon indigo at the horizon
+        const SDL_Color SKY_TOP = {7, 6, 30, 255}, SKY_BOT = {26, 24, 97, 255};
+        for (int y = 0; y < SH; y++)
+            fill(0, y, SW, 1, lerpCol(SKY_TOP, SKY_BOT, (float)y / SH));
+
+        // Planet body: scanline spans of a huge circle, bright rim → deep green
+        const float cx = SW / 2.0f;
+        const float cy = SH - PLANET_BUMP + PLANET_R;
+        const SDL_Color RIM_C = {52, 230, 134, 255}, DEEP_C = {22, 140, 62, 255};
+        for (int y = SH - PLANET_BUMP; y < SH; y++) {
+            float dy = cy - y;
+            float hw = sqrtf(PLANET_R * PLANET_R - dy * dy);
+            float t  = (float)(y - (SH - PLANET_BUMP)) / PLANET_BUMP;
+            fill((int)(cx - hw), y, (int)(hw * 2), 1, lerpCol(RIM_C, DEEP_C, t));
+        }
+        // Rim glow: per-column arc above the edge, fading with distance
+        const int GLOW = 30;
+        for (int x = 0; x < SW; x += 2) {
+            float dx    = x - cx;
+            float yEdge = cy - sqrtf(PLANET_R * PLANET_R - dx * dx);
+            for (int t = 1; t <= GLOW; t++) {
+                float k = 1.0f - (float)t / GLOW;
+                fill(x, (int)yEdge - t, 2, 1, {52, 230, 134, (Uint8)(70 * k * k)});
+            }
+            fill(x, (int)yEdge, 2, 3, {150, 255, 195, 255});  // bright rim line
+        }
+
+        SDL_SetRenderTarget(rdr, nullptr);
+    }
+
+    void drawBackground() {
+        Uint32 now = SDL_GetTicks();
+        if (bgTex) SDL_RenderCopy(rdr, bgTex, nullptr, nullptr);
+        else       fill(0, 0, SW, SH, C_BG);
+        // Twinkling, slowly drifting stars
+        for (auto& s : stars) {
+            s.x -= 0.02f * s.speed;
+            if (s.x < 0) s.x += SW;
+            float tw = 0.5f + 0.5f * sinf(now / 1000.0f * s.speed * 6.2832f + s.phase);
+            Uint8 a  = (Uint8)(70 + 170 * tw);
+            fill((int)s.x, (int)s.y, s.sz, s.sz, {230, 235, 255, a});
+            if (s.sz > 1 && tw > 0.75f) {  // sparkle cross on bright big stars
+                fill((int)s.x - 2, (int)s.y, 6, 1, {230, 235, 255, (Uint8)(a / 3)});
+                fill((int)s.x, (int)s.y - 2, 1, 6, {230, 235, 255, (Uint8)(a / 3)});
+            }
+        }
+    }
+
+    // Shared translucent header: "Android Horizon" with green accent + rim line
+    void drawHeaderBar(const std::string& rightText = "") {
+        fill(0, 0, SW, HEADER_H, {24, 22, 86, 205});
+        fill(0, HEADER_H - 3, SW, 3, C_RIM);
+        int w = drawText(fLg, "Android ", C_WHITE, 30, (HEADER_H - 28) / 2);
+        w += drawText(fLg, "Horizon", C_OK, 30 + w, (HEADER_H - 28) / 2);
+        drawText(fSm, BUILD_VERSION, C_DIM, 30 + w + 14, (HEADER_H + 4) / 2);
+        if (!rightText.empty()) {
+            int tw = 0, th = 0;
+            TTF_SizeUTF8(fSm, rightText.c_str(), &tw, &th);
+            drawText(fSm, rightText, C_DIM, SW - tw - 30, (HEADER_H - 18) / 2);
+        }
+    }
+
+    // HOS-style footer hints, right-aligned: {glyph-utf8-or-letter, label}.
+    // With the NintendoExt font the glyph IS the circled button; otherwise we
+    // draw our own chip with the letter.
+    void drawFooterBar(const std::vector<std::pair<std::string, std::string>>& hints,
+                       const std::string& leftText = "") {
+        fill(0, SH - FOOTER_H, SW, FOOTER_H, {9, 8, 34, 225});
+        fill(0, SH - FOOTER_H, SW, 2, C_RIM);
+        int cy = SH - FOOTER_H / 2;
+        if (!leftText.empty())
+            drawText(fSm, leftText, C_WARN, 30, cy - 9);
+        int x = SW - 30;
+        for (auto it = hints.rbegin(); it != hints.rend(); ++it) {
+            int lw = 0, lh = 0;
+            TTF_SizeUTF8(fSm, it->second.c_str(), &lw, &lh);
+            x -= lw;
+            drawText(fSm, it->second, C_GRAY, x, cy - lh / 2);
+            x -= 8;
+            if (fBtn && it->first.size() > 1) {   // real HOS glyph
+                int gw = 0, gh = 0;
+                TTF_SizeUTF8(fBtn, it->first.c_str(), &gw, &gh);
+                x -= gw;
+                drawText(fBtn, it->first, C_WHITE, x, cy - gh / 2);
+            } else {                              // fallback chip
+                x -= 26;
+                fillCircle(x + 13, cy, 13, {41, 37, 128, 255});
+                std::string letter = it->first.size() > 1 ? "?" : it->first;
+                int gw = 0, gh = 0;
+                TTF_SizeUTF8(fSm, letter.c_str(), &gw, &gh);
+                drawText(fSm, letter, C_WHITE, x + 13 - gw / 2, cy - gh / 2);
+            }
+            x -= 34;
+        }
+    }
+
+    // HOS button glyphs in the NintendoExt shared font
+    static constexpr const char* GLYPH_A     = "\xEE\x83\xA0";  // U+E0E0
+    static constexpr const char* GLYPH_B     = "\xEE\x83\xA1";  // U+E0E1
+    static constexpr const char* GLYPH_X     = "\xEE\x83\xA2";  // U+E0E2
+    static constexpr const char* GLYPH_Y     = "\xEE\x83\xA3";  // U+E0E3
+    static constexpr const char* GLYPH_PLUS  = "\xEE\x83\xAF";  // U+E0EF (+)
+    static constexpr const char* GLYPH_MINUS = "\xEE\x83\xB0";  // U+E0F0 (-)
+
+    // Pick the HOS glyph when the ext font loaded, else the plain letter
+    // (drawFooterBar renders single-char hints as its own chip).
+    std::string BG(const char* glyph, const char* letter) const {
+        return fBtn ? glyph : letter;
     }
 
     static std::string formatSize(uint64_t bytes) {
@@ -304,55 +484,61 @@ struct App {
 
     // ------------------------------------------------------------------
     void render() {
-        fill(0, 0, SW, SH, C_BG);
-        fill(0, 0, SW, HEADER_H, C_HEADER);
-        fill(0, HEADER_H - 3, SW, 3, C_RIM);
-        drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
-        {
-            int tw = 0, th = 0;
-            TTF_SizeUTF8(fLg, "Android Horizon", &tw, &th);
-            drawText(fSm, BUILD_VERSION, C_DIM, 30 + tw + 14, (HEADER_H + 4) / 2);
-        }
-        if (!apks.empty()) {
-            std::string cnt = std::to_string(apks.size()) +
-                              (apks.size() == 1 ? " APK" : " APKs");
-            int w = 0, h = 0;
-            TTF_SizeUTF8(fSm, cnt.c_str(), &w, &h);
-            drawText(fSm, cnt, C_DIM, SW - w - 30, (HEADER_H - 18) / 2);
-        }
+        Uint32 now = SDL_GetTicks();
+        drawBackground();
 
         if (apks.empty()) {
             drawText(fSm,
                 "No APKs found — place .apk files in sdmc:/AndroidHorizonNX/apks/",
                 C_GRAY, 30, LIST_Y + 30);
         } else {
+            // Focus card (borealis-style): eased position + pulsing green glow,
+            // drawn under the row content.
+            int targetY = LIST_Y + (selected - scroll) * ITEM_H;
+            if (selAnimY < 0) selAnimY = (float)targetY;
+            selAnimY += (targetY - selAnimY) * 0.35f;
+            if (fabsf(selAnimY - targetY) < 0.5f) selAnimY = (float)targetY;
+            {
+                int cy2 = (int)selAnimY;
+                float pulse = 0.5f + 0.5f * sinf(now / 1000.0f * 2.6f);
+                SDL_Rect card = {12, cy2 + 4, SW - 24, ITEM_H - 8};
+                fill(card.x, card.y, card.w, card.h, {41, 37, 128, 235});
+                for (int g = 1; g <= 5; g++) {       // soft outer glow
+                    Uint8 a = (Uint8)((60 - g * 10) * (0.55f + 0.45f * pulse));
+                    SDL_SetRenderDrawColor(rdr, 52, 230, 134, a);
+                    SDL_Rect gr = {card.x - g, card.y - g,
+                                   card.w + 2 * g, card.h + 2 * g};
+                    SDL_RenderDrawRect(rdr, &gr);
+                }
+                SDL_SetRenderDrawColor(rdr, 52, 230, 134,
+                                       (Uint8)(160 + 95 * pulse));
+                SDL_RenderDrawRect(rdr, &card);      // crisp focus border
+                fill(card.x, card.y, 5, card.h, C_RIM);
+            }
+
             int end = std::min((int)apks.size(), scroll + VISIBLE);
             for (int i = scroll; i < end; i++) {
                 int iy = LIST_Y + (i - scroll) * ITEM_H;
-                if (i == selected) {
-                    fill(0, iy, SW, ITEM_H, C_SEL);
-                    fill(0, iy, 5, ITEM_H, C_RIM);
-                }
-                SDL_SetRenderDrawColor(rdr, C_DIV.r, C_DIV.g, C_DIV.b, 255);
-                SDL_RenderDrawLine(rdr, 0, iy + ITEM_H - 1, SW, iy + ITEM_H - 1);
+                SDL_SetRenderDrawColor(rdr, C_DIV.r, C_DIV.g, C_DIV.b, 130);
+                SDL_RenderDrawLine(rdr, 24, iy + ITEM_H - 1, SW - 24, iy + ITEM_H - 1);
 
                 int iconY = iy + (ITEM_H - ICON_SZ) / 2;
                 if (i < (int)icons.size() && icons[i]) {
-                    SDL_Rect dst = {20, iconY, ICON_SZ, ICON_SZ};
+                    SDL_Rect dst = {28, iconY, ICON_SZ, ICON_SZ};
                     SDL_RenderCopy(rdr, icons[i], nullptr, &dst);
                 } else {
-                    drawMonogram(apks[i].appName, 20, iconY, ICON_SZ);
+                    drawMonogram(apks[i].appName, 28, iconY, ICON_SZ);
                 }
 
-                int tx   = 20 + ICON_SZ + 16;
-                int maxW = SW - tx - 30;
+                int tx   = 28 + ICON_SZ + 16;
+                int maxW = SW - tx - 40;
                 drawText(fLg, clamp(fLg, apks[i].appName, maxW), C_WHITE, tx, iy + 14);
 
                 if (apks[i].installed) {
                     static const std::string INST = "INSTALLED";
                     int bw = 0, bh = 0;
                     TTF_SizeUTF8(fSm, INST.c_str(), &bw, &bh);
-                    int bx = SW - bw - 30;
+                    int bx = SW - bw - 40;
                     fill(bx - 6, iy + 14, bw + 12, bh, {13, 72, 40, 200});
                     drawText(fSm, INST, C_INST, bx, iy + 14);
                 }
@@ -372,16 +558,16 @@ struct App {
             }
         }
 
-        fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
-        fill(0, SH - FOOTER_H, SW, 2, C_RIM);
-        if (appletGetOperationMode() == AppletOperationMode_Console) {
-            drawText(fSm, "Docked — games need handheld (touch screen)     +: Quit",
-                C_WARN, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
-        } else {
-            drawText(fSm,
-                "A: Launch     X: Reinstall     Y: Rescan     -: About     +: Quit",
-                C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
-        }
+        std::string cnt;
+        if (!apks.empty())
+            cnt = std::to_string(apks.size()) + (apks.size() == 1 ? " APK" : " APKs");
+        drawHeaderBar(cnt);
+
+        bool docked = appletGetOperationMode() == AppletOperationMode_Console;
+        drawFooterBar({{BG(GLYPH_A, "A"), "Launch"}, {BG(GLYPH_X, "X"), "Reinstall"},
+                       {BG(GLYPH_Y, "Y"), "Rescan"}, {BG(GLYPH_MINUS, "-"), "About"},
+                       {BG(GLYPH_PLUS, "+"), "Quit"}},
+                      docked ? "Docked — games need handheld (touch screen)" : "");
         SDL_RenderPresent(rdr);
     }
 
@@ -423,14 +609,10 @@ struct App {
         Uint32 elapsed_s = (now - s_stage_t) / 1000;
 
         // ── Background ──
-        fill(0, 0, SW, SH, C_BG);
-        fill(0, 0, SW, HEADER_H, C_HEADER);
-        fill(0, HEADER_H - 3, SW, 3, C_RIM);
-        drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
-
+        drawBackground();
         // Animated spinner in header (4-frame ASCII, cycles every 150ms)
         static const char* SPINS[] = {"| Loading", "/ Loading", "- Loading", "\\ Loading"};
-        drawText(fSm, SPINS[(now / 150) % 4], C_DIM, SW - 200, (HEADER_H - 18) / 2);
+        drawHeaderBar(SPINS[(now / 150) % 4]);
 
         int y = LIST_Y + 22;
 
@@ -543,10 +725,7 @@ struct App {
             y += 60;
         }
 
-        fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
-        fill(0, SH - FOOTER_H, SW, 2, C_RIM);
-        drawText(fSm, "Please wait — sdmc:/AndroidHorizonNX/compat_log.txt",
-                 C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
+        drawFooterBar({}, "Please wait — sdmc:/AndroidHorizonNX/compat_log.txt");
 
         SDL_RenderPresent(rdr);
     }
@@ -618,10 +797,17 @@ struct App {
                 if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) { done = true; }
             }
 
-            fill(0, 0, SW, SH, C_BG);
-            fill(0, 0, SW, HEADER_H, C_HEADER);
-            fill(0, HEADER_H - 3, SW, 3, C_RIM);
-            drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
+            drawBackground();
+            drawHeaderBar();
+
+            // Translucent result panel so text reads over the starfield
+            fill(40, LIST_Y + 6, SW - 80, SH - LIST_Y - FOOTER_H - 12, {10, 9, 44, 215});
+            {
+                SDL_Rect panel = {40, LIST_Y + 6, SW - 80, SH - LIST_Y - FOOTER_H - 12};
+                SDL_SetRenderDrawColor(rdr, res.ok ? 52 : 235, res.ok ? 230 : 90,
+                                       res.ok ? 134 : 90, 200);
+                SDL_RenderDrawRect(rdr, &panel);
+            }
 
             int iconSz = 112;
             if (idx < (int)icons.size() && icons[idx]) {
@@ -673,11 +859,7 @@ struct App {
             y += 8;
             drawText(fSm, "Full log: sdmc:/AndroidHorizonNX/compat_log.txt", C_DIM, 60, y);
 
-            fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
-            fill(0, SH - FOOTER_H, SW, 2, C_RIM);
-        fill(0, SH - FOOTER_H, SW, 2, C_RIM);
-            drawText(fSm, "B: Back to menu",
-                     C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
+            drawFooterBar({{BG(GLYPH_B, "B"), "Back to menu"}});
 
             SDL_RenderPresent(rdr);
             SDL_Delay(16);
@@ -709,10 +891,8 @@ struct App {
                 }
             }
 
-            fill(0, 0, SW, SH, C_BG);
-            fill(0, 0, SW, HEADER_H, C_HEADER);
-            fill(0, HEADER_H - 3, SW, 3, C_RIM);
-            drawText(fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
+            drawBackground();
+            drawHeaderBar();
 
             int avSz = 160;
             int avX  = (SW - avSz) / 2;
@@ -742,11 +922,7 @@ struct App {
             y += 10;
             center(fSm, "Android NDK compatibility layer for Nintendo Switch (HorizonOS)", C_GRAY);
 
-            fill(0, SH - FOOTER_H, SW, FOOTER_H, C_FOOTER);
-            fill(0, SH - FOOTER_H, SW, 2, C_RIM);
-        fill(0, SH - FOOTER_H, SW, 2, C_RIM);
-            drawText(fSm, "B: Back to menu",
-                     C_DIM, 30, SH - FOOTER_H + (FOOTER_H - 18) / 2);
+            drawFooterBar({{BG(GLYPH_B, "B"), "Back to menu"}});
 
             SDL_RenderPresent(rdr);
             SDL_Delay(16);
@@ -764,9 +940,8 @@ int main(int, char**) {
     mkdir(APK_DIR, 0777);
 
     // Scanning splash
-    app.fill(0, 0, SW, SH, C_BG);
-    app.fill(0, 0, SW, HEADER_H, C_HEADER);
-    app.drawText(app.fLg, "Android Horizon", C_WHITE, 30, (HEADER_H - 28) / 2);
+    app.drawBackground();
+    app.drawHeaderBar();
     app.drawText(app.fSm, "Scanning for APKs...", C_GRAY, 30, LIST_Y + 30);
     SDL_RenderPresent(app.rdr);
 
@@ -779,7 +954,6 @@ int main(int, char**) {
 
     while (!quit) {
         SDL_Event ev;
-        bool redraw = false;
 
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) { quit = true; break; }
@@ -797,7 +971,6 @@ int main(int, char**) {
                             LaunchResult res = app.runLaunch(apk, skip);
                             if (!skip) app.apks[app.selected].installed = true;
                             app.showLaunchResult(res, app.selected);
-                            redraw = true;
                         }
                         break;
 
@@ -807,18 +980,15 @@ int main(int, char**) {
                             LaunchResult res = app.runLaunch(apk, false);
                             app.apks[app.selected].installed = true;
                             app.showLaunchResult(res, app.selected);
-                            redraw = true;
                         }
                         break;
 
                     case BTN_Y:
                         app.rescan();
-                        redraw = true;
                         break;
 
                     case BTN_MINUS:
                         app.showAbout();
-                        redraw = true;
                         break;
 
                     case BTN_B:
@@ -831,14 +1001,12 @@ int main(int, char**) {
                     if (!app.apks.empty() && app.selected < (int)app.apks.size() - 1) {
                         app.selected++;
                         if (app.selected >= app.scroll + VISIBLE) app.scroll++;
-                        redraw = true;
                     }
                 }
                 if (ev.jhat.value & SDL_HAT_UP) {
                     if (!app.apks.empty() && app.selected > 0) {
                         app.selected--;
                         if (app.selected < app.scroll) app.scroll--;
-                        redraw = true;
                     }
                 }
             }
@@ -850,19 +1018,21 @@ int main(int, char**) {
                         app.selected < (int)app.apks.size() - 1) {
                         app.selected++;
                         if (app.selected >= app.scroll + VISIBLE) app.scroll++;
-                        lastStick = now; redraw = true;
+                        lastStick = now;
                     } else if (ev.jaxis.value < -16384 && !app.apks.empty() &&
                                app.selected > 0) {
                         app.selected--;
                         if (app.selected < app.scroll) app.scroll--;
-                        lastStick = now; redraw = true;
+                        lastStick = now;
                     }
                 }
             }
         }
 
-        if (redraw) app.render();
-        SDL_Delay(8);
+        // Continuous ~60fps render — the starfield twinkles and the focus
+        // card glow pulses even with no input.
+        app.render();
+        SDL_Delay(16);
     }
 
     app.cleanup();

@@ -217,6 +217,11 @@ static void s_CallStaticVoidMethodV(JNIEnv*, jclass, jmethodID mid, va_list args
         compatLog("JNI UserDefault.flush (no-op)");
         return;
     }
+    if (strcmp(e->name, "debugStringOnAndroid") == 0) {
+        const char* msg = (const char*)va_arg(args, jstring);
+        compatLogFmt("game debug: %s", msg ? msg : "null");
+        return;
+    }
     compatLogFmt("JNI CallStaticVoidMethodV: %s %s", e->name, e->sig);
 }
 static void s_CallStaticVoidMethod(JNIEnv* env, jclass cls, jmethodID mid, ...) {

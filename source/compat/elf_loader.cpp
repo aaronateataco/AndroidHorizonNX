@@ -197,29 +197,35 @@ void elfRunCtors(LoadedSo* so, ProgressCb cb) {
 // All successfully loaded .so files (for cross-library symbol resolution)
 static std::vector<LoadedSo*> g_loaded_sos;
 
+// Describe an arbitrary code address as "<so> +0x<off> sym=<name>" (or mark it
+// as host code). Used for abort()/exit() callers and unrecovered faults.
+void elfDescribePc(uint64_t pc, char* buf, size_t sz) {
+    for (LoadedSo* so : g_loaded_sos) {
+        if (pc >= (uint64_t)so->alloc && pc < (uint64_t)so->alloc + so->alloc_size) {
+            char sym_buf[160];
+            elfNearestSym(so, pc - (uint64_t)so->base, sym_buf, sizeof(sym_buf));
+            snprintf(buf, sz, "%s +0x%lx sym=%s",
+                     so->path.c_str(), pc - (uint64_t)so->base, sym_buf);
+            return;
+        }
+    }
+    snprintf(buf, sz, "%p (host/nro code)", (void*)pc);
+}
+
 // Last chance to get the crash PC on disk before svcReturnFromException kills
 // the process. Runs on the exception stack; must not fault again (guard flag).
 static void logUnrecoveredFault(ThreadExceptionDump* ctx) {
     static bool logged = false;
     if (logged) return;
     logged = true;
-    uint64_t pc = ctx->pc.x;
     compatLogFmt("UNRECOVERED FAULT desc=0x%x esr=0x%08x pc=%p far=%p lr=%p sp=%p",
-                 (unsigned)ctx->error_desc, ctx->esr, (void*)pc, (void*)ctx->far.x,
+                 (unsigned)ctx->error_desc, ctx->esr, (void*)ctx->pc.x, (void*)ctx->far.x,
                  (void*)ctx->lr.x, (void*)ctx->sp.x);
-    bool in_so = false;
-    for (LoadedSo* so : g_loaded_sos) {
-        if (pc >= (uint64_t)so->alloc && pc < (uint64_t)so->alloc + so->alloc_size) {
-            char sym_buf[160];
-            elfNearestSym(so, pc - (uint64_t)so->base, sym_buf, sizeof(sym_buf));
-            compatLogFmt("UNRECOVERED FAULT: %s +0x%lx sym=%s",
-                         so->path.c_str(), pc - (uint64_t)so->base, sym_buf);
-            in_so = true;
-            break;
-        }
-    }
-    if (!in_so)
-        compatLog("UNRECOVERED FAULT: pc not in any loaded .so (host/nro code)");
+    char where[256];
+    elfDescribePc(ctx->pc.x, where, sizeof(where));
+    compatLogFmt("UNRECOVERED FAULT at %s", where);
+    elfDescribePc(ctx->lr.x, where, sizeof(where));
+    compatLogFmt("UNRECOVERED FAULT lr in %s", where);
     compatLogFlush();
 }
 

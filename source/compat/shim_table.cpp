@@ -184,23 +184,46 @@ static FILE* stub_tmpfile()                      { return tmpfile(); }
 extern void compatLog(const char* msg);
 extern void compatLogFmt(const char* fmt, ...);
 extern void compatLogFlush();
+extern void elfDescribePc(uint64_t pc, char* buf, size_t sz);
 
 // Game-initiated termination is otherwise invisible (process just returns to
-// the Home menu with nothing in the log) — record it before actually dying.
+// the Home menu with nothing in the log) — record it, plus the caller's
+// return address so the log names the code path that pulled the trigger.
+static void logTermCaller(const char* what, void* ret_addr) {
+    char where[256];
+    elfDescribePc((uint64_t)ret_addr, where, sizeof(where));
+    compatLogFmt("%s from %s", what, where);
+    compatLogFlush();
+}
 static void sh_exit(int code) {
     compatLogFmt("game called exit(%d)", code);
-    compatLogFlush();
+    logTermCaller("exit called", __builtin_return_address(0));
     exit(code);
 }
 static void sh_abort() {
     compatLog("game called abort()");
-    compatLogFlush();
+    logTermCaller("abort called", __builtin_return_address(0));
     abort();
 }
 static void sh_exit_raw(int code) {
     compatLogFmt("game called _exit(%d)", code);
-    compatLogFlush();
+    logTermCaller("_exit called", __builtin_return_address(0));
     exit(code);
+}
+
+// write() routed through the log for stdout/stderr — libc++abi terminate
+// messages ("terminating with uncaught exception of type ...") land on fd 2.
+static ssize_t sh_write(int fd, const void* buf, size_t n) {
+    if ((fd == 1 || fd == 2) && buf && n > 0) {
+        char tmp[512];
+        size_t c = n < sizeof(tmp) - 1 ? n : sizeof(tmp) - 1;
+        memcpy(tmp, buf, c);
+        tmp[c] = '\0';
+        while (c > 0 && (tmp[c - 1] == '\n' || tmp[c - 1] == '\r')) tmp[--c] = '\0';
+        if (c > 0) compatLogFmt("game %s: %s", fd == 2 ? "stderr" : "stdout", tmp);
+        return (ssize_t)n;
+    }
+    return write(fd, buf, n);
 }
 
 // fopen wrapper — logs failed opens so we can see what paths game code requests
@@ -719,7 +742,11 @@ extern "C" void __stack_chk_fail(void) {
     compatLog("FATAL: stack smash detected");
     abort();
 }
-extern "C" void __cxa_pure_virtual(void) { abort(); }
+extern "C" void __cxa_pure_virtual(void) {
+    compatLog("game called __cxa_pure_virtual (pure virtual method call)");
+    logTermCaller("pure virtual call", __builtin_return_address(0));
+    abort();
+}
 extern "C" void __cxa_atexit(void*, void*, void*) {}
 
 // ─── Unwind stubs ────────────────────────────────────────────────────────────
@@ -812,7 +839,7 @@ static const ShimEntry g_shims[] = {
     {"open",        (void*)stub_open},
     {"close",       (void*)close},
     {"read",        (void*)read},
-    {"write",       (void*)write},
+    {"write",       (void*)sh_write},
     {"lseek",       (void*)lseek},
     {"stat",        (void*)stat},
     {"fstat",       (void*)fstat},
