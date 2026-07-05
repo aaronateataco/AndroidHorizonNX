@@ -197,6 +197,7 @@ void         jniSetup(CompatLayer* cl);
 // ─── SimpleAudioEngine backend (audio.cpp, SDL2_mixer) ───────────────────────
 // jni_env.cpp forwards the Cocos2dxSound/Cocos2dxMusic JNI calls here.
 void  compatAudioSetAssetsDir(const char* dir);
+void  compatAudioWarmup();
 void  compatAudioPlayMusic(const char* path, bool loop);
 void  compatAudioStopMusic();
 void  compatAudioPauseMusic();

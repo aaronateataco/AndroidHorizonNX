@@ -212,7 +212,31 @@ void elfDescribePc(uint64_t pc, char* buf, size_t sz) {
             return;
         }
     }
-    snprintf(buf, sz, "%p (host/nro code)", (void*)pc);
+    // Host code: anchor the address against a known host symbol so it can be
+    // resolved offline against the build's .elf:
+    //   nm AndroidHorizonNX.elf | grep ' compatLog$'  → elf_addr
+    //   fault_elf_addr = elf_addr + delta
+    extern void compatLog(const char*);
+    long long d = (long long)pc - (long long)(uintptr_t)&compatLog;
+    snprintf(buf, sz, "%p (host, compatLog%+lld)", (void*)pc, d);
+}
+
+// Log what a faulting address actually is: containing kernel memory region,
+// its type and permissions. Distinguishes heap / JIT / host image / stack /
+// unmapped at a glance.
+void elfLogAddrInfo(const char* tag, uint64_t addr) {
+    MemoryInfo mi = {};
+    u32 pageinfo = 0;
+    if (R_SUCCEEDED(svcQueryMemory(&mi, &pageinfo, addr))) {
+        compatLogFmt("%s %p: region=%p size=0x%lx type=0x%x perm=%c%c%c", tag,
+                     (void*)addr, (void*)mi.addr, (unsigned long)mi.size,
+                     (unsigned)mi.type,
+                     (mi.perm & Perm_R) ? 'r' : '-',
+                     (mi.perm & Perm_W) ? 'w' : '-',
+                     (mi.perm & Perm_X) ? 'x' : '-');
+    } else {
+        compatLogFmt("%s %p: svcQueryMemory failed", tag, (void*)addr);
+    }
 }
 
 // Last chance to get the crash PC on disk before svcReturnFromException kills
@@ -229,6 +253,8 @@ static void logUnrecoveredFault(ThreadExceptionDump* ctx) {
     compatLogFmt("UNRECOVERED FAULT at %s", where);
     elfDescribePc(ctx->lr.x, where, sizeof(where));
     compatLogFmt("UNRECOVERED FAULT lr in %s", where);
+    elfLogAddrInfo("UNRECOVERED FAULT pc", ctx->pc.x);
+    elfLogAddrInfo("UNRECOVERED FAULT far", ctx->far.x);
     compatLogFlush();
 }
 

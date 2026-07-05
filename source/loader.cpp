@@ -592,8 +592,10 @@ void runGameOnMainThread(void* game_so_ptr,
     androidTlsInstall();
 
     // SimpleAudioEngine paths are asset-relative — point audio.cpp at the
-    // extracted APK assets.
+    // extracted APK assets, and bring the mixer up now, outside the game
+    // loop's recovery window (lazy init mid-frame is a fault suspect).
     compatAudioSetAssetsDir((data_path + "/assets").c_str());
+    compatAudioWarmup();
 
     // Capture SDL2's active EGL context (current on this main thread).
     g_egl_display = eglGetCurrentDisplay();
@@ -832,6 +834,15 @@ void runGameOnMainThread(void* game_so_ptr,
                 compatLogFmt("Cocos2d-x: game loop FAULT sig=%d esr=0x%08x pc=%p far=%p sym=%s frame=%d — stop",
                              g_recover_sig, g_recover_esr,
                              (void*)g_recover_pc, (void*)g_recover_far, sym_buf, frame);
+                {
+                    extern void elfLogAddrInfo(const char*, uint64_t);
+                    extern void elfDescribePc(uint64_t pc, char* buf, size_t sz);
+                    char where[256];
+                    elfDescribePc(g_recover_pc, where, sizeof(where));
+                    compatLogFmt("FAULT pc: %s", where);
+                    elfLogAddrInfo("FAULT pc", g_recover_pc);
+                    elfLogAddrInfo("FAULT far", g_recover_far);
+                }
                 { const uint32_t* insn = (const uint32_t*)(uintptr_t)g_recover_pc;
                   compatLogFmt("INSN: [pc-12]=%08x [pc-8]=%08x [pc-4]=%08x [pc]=%08x [pc+4]=%08x",
                                insn[-3], insn[-2], insn[-1], insn[0], insn[1]); }

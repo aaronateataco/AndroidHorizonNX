@@ -75,6 +75,8 @@ Android Horizon captures these **automatically on real hardware** — the launch
 | *APK browser — starfield, planet horizon, HOS button glyphs* | *Live loading screen with real-time compat log* |
 | ![Fingersoft splash](docs/screenshots/game_frame30.png) | ![Game loading screen](docs/screenshots/game_frame300.png) |
 | *Fingersoft splash animating (game frame 30)* | *Hill Climb Racing loading screen rendering on Horizon OS (frame 300)* |
+| ![Terms of Service screen](docs/screenshots/game_frame900.png) | |
+| *Fully loaded and interactive — the game's Terms of Service screen (frame 900)* | |
 
 ---
 
@@ -242,6 +244,14 @@ First real measured numbers from hardware:
 ## Changelog
 
 > Most recent first.
+
+### 0.1.63 — Allocator crash root-caused: JNI string constants
+
+- [x] **Build 59/60 frame-2 crash root-caused via the new forensics** — `svcQueryMemory` + host-symbol anchoring resolved the fault to newlib's `_free_r` writing a free-list link into our NRO's read-only segment: the game `free()`d a JNI string we handed it. On real Android, `GetStringUTFChars` returns a malloc'd copy (so game code that `free()`s it instead of calling `ReleaseStringUTFChars` gets away with it); ours returned the string constant itself.
+- [x] **Fix 1:** `GetStringUTFChars` now returns a real heap copy (ART-compatible) and `ReleaseStringUTFChars` frees it.
+- [x] **Fix 2:** guarded allocator — `free`/`realloc` verify the pointer is actually heap (`svcQueryMemory`) before touching it, and log the symbolized caller of any non-heap free instead of corrupting the allocator.
+- [x] Mixer init now happens before the game loop starts (was lazily mid-frame).
+- [x] New crash forensics stay in: fault pc/far region type+permissions, host addresses anchored to a known symbol for offline resolution against the build's `.elf`.
 
 ### 0.1.59 — Touch + audio
 

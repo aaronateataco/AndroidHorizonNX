@@ -62,6 +62,13 @@ void compatAudioSetAssetsDir(const char* dir) {
     compatLogFmt("audio: assets dir = %s", g_assets.c_str());
 }
 
+// Initialize the mixer up front (called before the game loop starts) so
+// device/thread setup doesn't happen lazily in the middle of a rendered frame.
+void compatAudioWarmup() {
+    AudioLock al;
+    ensureInit();
+}
+
 void compatAudioPlayMusic(const char* path, bool loop) {
     AudioLock al;
     if (!ensureInit()) return;

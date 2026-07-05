@@ -237,6 +237,40 @@ static void sh_exit_raw(int code) {
     exit(code);
 }
 
+// ─── Guarded free/realloc ─────────────────────────────────────────────────────
+// Build 60 forensics: the game free()d a pointer into our NRO's RX segment
+// (a JNI string constant), and newlib's _free_r faulted writing a free-list
+// link into read-only memory. Android's allocator tolerates some of this and
+// ART hands out heap copies, so be equally forgiving: only pass real heap
+// pointers to the allocator, and log (symbolized, rate-limited) who tried.
+static bool memIsHeap(const void* p) {
+    MemoryInfo mi = {};
+    u32 pageinfo = 0;
+    if (R_FAILED(svcQueryMemory(&mi, &pageinfo, (u64)p))) return false;
+    return mi.type == MemType_Heap;
+}
+static void sh_free(void* p) {
+    if (!p) return;
+    if (!memIsHeap(p)) {
+        static int warned = 0;
+        if (warned < 20) {
+            warned++;
+            char where[256];
+            elfDescribePc((uint64_t)__builtin_return_address(0), where, sizeof(where));
+            compatLogFmt("free: SKIP non-heap ptr %p from %s", p, where);
+        }
+        return;
+    }
+    free(p);
+}
+static void* sh_realloc(void* p, size_t n) {
+    if (p && !memIsHeap(p)) {
+        compatLogFmt("realloc: non-heap ptr %p — returning fresh block", p);
+        return malloc(n);
+    }
+    return realloc(p, n);
+}
+
 // ─── /dev/urandom virtual fd ─────────────────────────────────────────────────
 // libc++'s std::random_device ctor opens /dev/urandom — through bionic's
 // fortified __open_2, so no logged shim showed the failure. The path doesn't
@@ -984,9 +1018,9 @@ static const ShimEntry g_shims[] = {
 
     // ── libc / newlib passthrough ────────────────────────────────────────────
     {"malloc",      (void*)malloc},
-    {"free",        (void*)free},
+    {"free",        (void*)sh_free},
     {"calloc",      (void*)calloc},
-    {"realloc",     (void*)realloc},
+    {"realloc",     (void*)sh_realloc},
     {"memalign",    (void*)memalign},
     {"posix_memalign",(void*)stub_posix_memalign},
     {"memcpy",      (void*)memcpy},

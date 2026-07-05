@@ -1,5 +1,6 @@
 #include "compat/loader.h"
 #include "compat/jni.h"
+#include <string.h>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -348,10 +349,19 @@ static jsize   s_GetStringUTFLength(JNIEnv*, jstring s) {
     return s ? (jsize)strlen((const char*)s) : 0;
 }
 static const char* s_GetStringUTFChars(JNIEnv*, jstring s, jboolean* cp) {
-    if (cp) *cp = JNI_FALSE;
-    return (const char*)s;
+    if (cp) *cp = JNI_TRUE;
+    // ART returns a malloc'd copy, and sloppy game code free()s it directly
+    // instead of calling ReleaseStringUTFChars — that only survives if the
+    // pointer really is heap. Returning the jstring (often a string literal
+    // in OUR rodata) made such a free() corrupt the allocator (_free_r write
+    // fault into the module's RX segment, build 60 log).
+    const char* src = s ? (const char*)s : "";
+    size_t n = strlen(src) + 1;
+    char* c = (char*)malloc(n);
+    if (c) memcpy(c, src, n);
+    return c;
 }
-static void    s_ReleaseStringUTFChars(JNIEnv*, jstring, const char*) {}
+static void    s_ReleaseStringUTFChars(JNIEnv*, jstring, const char* c) { free((void*)c); }
 static jstring s_NewString(JNIEnv*, const jchar*, jsize) { return nullptr; }
 static jsize   s_GetStringLength(JNIEnv*, jstring)       { return 0; }
 static const jchar* s_GetStringChars(JNIEnv*, jstring, jboolean* cp) {
