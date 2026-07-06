@@ -772,10 +772,14 @@ struct ProbePoint { int x, y; uint8_t r, g, b; };
 // guessed. The loading bar point turned out unstable (255,255,255 early,
 // dropping to 67,73,76 once the fill animation passes it), so it's dropped
 // in favour of a third corner — same static vignette tone, always stable.
+// Top corners confirmed matching in a real log (48,54,66)/(45,49,60) vs
+// (46,51,63) — no recalibration needed there. The bottom-left corner reads
+// genuinely darker (16,19,27), consistently across two samples — the
+// vignette isn't uniform, it darkens further toward that corner.
 static const ProbePoint kLoadingProbes[3] = {
     {10,   10,  46, 51, 63},   // dark vignette corner, top-left
     {1270, 10,  46, 51, 63},   // dark vignette corner, top-right
-    {10,  710,  46, 51, 63},   // dark vignette corner, bottom-left
+    {10,  710,  16, 19, 27},   // vignette corner, bottom-left (darker falloff)
 };
 static const int kProbeTolerance = 25;
 
@@ -1233,6 +1237,15 @@ void runGameOnMainThread(void* game_so_ptr,
         // rapid black/frozen-frame flicker. The very next SDL_RenderPresent
         // in the launcher's own screens presents cleanly on its own.
         resetGLStateForLauncher(1280, 720);
+        // The game can call eglSwapInterval (it's in our shim table, mapped
+        // straight to the real EGL function) to control its OWN frame
+        // pacing — e.g. 0 for uncapped rendering. That setting is global to
+        // the surface and survives a crash; if left at 0, the launcher's
+        // SDL_Renderer (which expects vsync — SDL_RENDERER_PRESENTVSYNC)
+        // would present as fast as the driver allows with no pacing at all,
+        // which reads exactly like the persistent flicker reported after a
+        // crash. Force vsync back on before the launcher renders again.
+        if (g_egl_display != EGL_NO_DISPLAY) eglSwapInterval(g_egl_display, 1);
     } else {
         compatLog("Cocos2d-x: nativeRender not found");
     }

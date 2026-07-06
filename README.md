@@ -272,6 +272,11 @@ This is the real blocker on docked mode: right now only touch input is implement
 
 > Most recent first.
 
+### 0.1.79 — Overlay finally calibrated correctly + a real lead on the flicker
+
+- [x] **Overlay probe fully calibrated** — the two top corners were already matching in the last log, but the bottom-left corner reads genuinely darker `(16,19,27)` than the top corners `(46,51,63)` — the background vignette isn't uniform, it darkens further into that corner. Since all 3 probes have to match, this one wrong value was blocking the overlay every time even though 2 of 3 were already correct.
+- [x] **New lead on the flicker surviving the 0.1.78 fix**: the crash log closes (and stops being useful) the moment the game loop exits, but the reported flicker happens afterward in the launcher's own menu code — meaning compat_log.txt structurally can't show it directly. Reasoning about what else could cause a *persistent* flicker independent of app state: the game can call `eglSwapInterval` to control its own frame pacing (e.g. uncapped/0 for smoother gameplay), and that setting is global to the graphics surface — it survives a crash. If left at 0, the launcher's renderer (which expects vsync-paced presentation) would present as fast as the driver allows with no frame pacing at all, which reads exactly like a persistent flicker. Now force vsync back on every time the game loop ends, crash or not.
+
 ### 0.1.78 — Flicker fix, "+" on the result screen, real probe calibration
 
 - [x] **Found the actual cause of the freeze → fade → rapid black/frozen-frame flicker introduced last build** — the GL state reset added in 0.1.77 also called `eglSwapBuffers`/`SDL_GL_SwapWindow` directly. The launcher's own screens present via SDL_Renderer, which manages its own front/back-buffer bookkeeping internally and doesn't expect anything else swapping that surface — an extra out-of-band swap desynced it, and the result was two different rendering paths fighting over which buffer to show. Fix: reset the GL *state* (bindings, blend, viewport, a clear) but don't swap — the very next legitimate `SDL_RenderPresent` in the launcher's own screens now presents cleanly on its own.
