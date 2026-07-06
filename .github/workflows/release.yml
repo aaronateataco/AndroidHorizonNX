@@ -67,10 +67,37 @@ jobs:
             echo "$resp" | grep -E '"login"|"contributions"' | paste -d' ' - - \
               | sed -E 's/.*"login": *"([^"]+)".*"contributions": *([0-9]+).*/\1:\2/'
           }
+          fetch_testers() {
+            # Community testers aren't git contributors to any repo — they're
+            # the people who submitted a compat-report issue. Pull the
+            # dedup'd submitter list straight from the same games.json the
+            # website's Credits page reads. Skip the category entirely if
+            # nobody's submitted anything yet, rather than showing an empty
+            # heading in the About screen.
+            resp=$(curl -s "https://raw.githubusercontent.com/AndroidHorizon/compat-reports/main/data/games.json")
+            names=$(echo "$resp" | python3 -c "
+import json, sys
+try:
+    games = json.load(sys.stdin)
+except Exception:
+    games = []
+seen = []
+for g in games:
+    u = g.get('submitted_by')
+    if u and u not in seen:
+        seen.append(u)
+print('\n'.join(seen))
+")
+            if [ -n "$names" ]; then
+              echo "#Testers"
+              echo "$names"
+            fi
+          }
           {
             fetch_repo_contributors "AndroidHorizonNX" "Launcher (AndroidHorizonNX)"
             fetch_repo_contributors "AHNX-Translation-Core" "Translation Core"
             fetch_repo_contributors "website" "Website"
+            fetch_testers
           } > launcher/romfs/contributors.txt
           echo "--- contributors.txt ---"
           cat launcher/romfs/contributors.txt
