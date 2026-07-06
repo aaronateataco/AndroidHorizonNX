@@ -364,6 +364,12 @@ If this approach proves out across many games (not just Hill Climb Racing), the 
 
 > Most recent first.
 
+### 0.1.124 — Real file attachment on the submission form
+
+- [x] The three log fields on the [submission form](https://androidhorizon.github.io/website/submit.html) now have an actual file picker (reads the `.txt` client-side and fills the box), not just a paste box — first version only had the latter despite implying "attach."
+- [x] **The APK itself can now be attached directly** (up to 20MB — empirically the largest GitHub's Contents API reliably accepts is somewhere between 25-40MB), as an alternative to pasting a download link. The Worker writes the uploaded bytes straight through to `compat-reports/pending/<id>/game.apk`; the Action uses it directly instead of downloading, when present.
+- [x] Verified live end-to-end twice — once via a pasted link, once via a real direct file upload of the same APK, confirming both produce byte-identical SHA-256 hashes.
+
 ### 0.1.123 — Compat submissions moved from a GitHub issue form to the website
 
 - [x] **Replaced the GitHub issue form with a website form** (`submit.html`) — no GitHub account needed to submit, and no more fighting GitHub's ~64KB issue-field/dispatch-payload limits (`compat_log.txt` routinely exceeded the old textarea cap).
