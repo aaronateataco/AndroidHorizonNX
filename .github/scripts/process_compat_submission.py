@@ -319,6 +319,7 @@ def main():
         return
 
     apk_url = (meta_in.get("apk_url") or "").strip()
+    apk_uploaded = bool(meta_in.get("apk_uploaded"))
     source_site = (meta_in.get("source_site") or "").strip()
     github_username = (meta_in.get("github_username") or "").strip()
     notes = (meta_in.get("notes") or "").strip()
@@ -334,25 +335,32 @@ def main():
     compat_log = read_log("compat_log.txt")
     core_log = read_log("core_log.txt")
 
-    if not apk_url or not source_site or not (launcher_log and compat_log and core_log):
-        fail("missing required fields (apk_url / source_site / one or more logs)")
-        return
+    uploaded_apk_path = os.path.join(pending_dir, "game.apk")
+    has_uploaded_apk = apk_uploaded and os.path.exists(uploaded_apk_path)
 
-    parsed = urllib.parse.urlparse(apk_url)
-    if parsed.scheme not in ("http", "https"):
-        fail(f"apk_url isn't a valid http(s) link: {apk_url}")
+    if not source_site or not (launcher_log and compat_log and core_log) or not (apk_url or has_uploaded_apk):
+        fail("missing required fields (apk_url/uploaded APK / source_site / one or more logs)")
         return
 
     apk_path = os.path.join(workdir, "game.apk")
-    ok, http_code, err = download_apk(apk_url, apk_path)
-    if not ok:
-        fail(f"couldn't download the APK ({err or 'unknown error'})")
-        return
+    if has_uploaded_apk:
+        # The Worker already wrote the raw bytes straight from the browser —
+        # no download needed, just use them directly.
+        shutil.copy(uploaded_apk_path, apk_path)
+    else:
+        parsed = urllib.parse.urlparse(apk_url)
+        if parsed.scheme not in ("http", "https"):
+            fail(f"apk_url isn't a valid http(s) link: {apk_url}")
+            return
+        ok, http_code, err = download_apk(apk_url, apk_path)
+        if not ok:
+            fail(f"couldn't download the APK ({err or 'unknown error'})")
+            return
 
     with open(apk_path, "rb") as f:
         apk_bytes = f.read()
     if apk_bytes[:2] != b"PK":
-        fail("downloaded file isn't a valid APK/ZIP (bad magic bytes)")
+        fail("the APK isn't a valid ZIP (bad magic bytes)")
         return
     apk_sha256 = hashlib.sha256(apk_bytes).hexdigest()
     del apk_bytes
@@ -399,7 +407,8 @@ def main():
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     meta = {
         "game_name": app_name, "package_name": pkg, "version_name": ver,
-        "apk_url": apk_url, "apk_sha256": apk_sha256, "source_site": source_site,
+        "apk_url": apk_url if apk_url else "(uploaded directly, no link)",
+        "apk_sha256": apk_sha256, "source_site": source_site,
         "submitted_by": github_username or "anonymous", "submitted_at": now,
         "notes": notes, "play_store_category_check": play_status,
         "superseded_submission_by": old_meta.get("submitted_by") if old_meta else None,
