@@ -761,32 +761,69 @@ static void initBrandOverlay() {
     const SDL_Color white = {255, 255, 255, 255};
     const SDL_Color green = {52,  230, 134, 255};
     const SDL_Color dim   = {180, 182, 205, 255};
+    const SDL_Color black = {0,   0,   0,   255};
 
-    SDL_Surface* a = TTF_RenderUTF8_Blended(font, "Android ", white);
-    SDL_Surface* b = TTF_RenderUTF8_Blended(font, "Horizon", green);
+    // HCR's own version text is set in "Agency FB" (found via the bundled
+    // gamefont.fnt bitmap-font descriptor: bold=1, with a baked-in outline —
+    // that's the chunky look). Agency FB itself is a commercial Windows font
+    // we can't bundle, but the outline is easy to fake: render each piece
+    // twice — once in black, blitted at several small offsets around the
+    // real position, then the actual colour on top — a standard "poor man's
+    // stroke" technique.
     std::string verStr = std::string(" ") + BUILD_VERSION;
-    SDL_Surface* c = TTF_RenderUTF8_Blended(font, verStr.c_str(), dim);
+    struct TextPiece { const char* str; SDL_Color color; };
+    TextPiece pieces[3] = {
+        {"Android ",      white},
+        {"Horizon",       green},
+        {verStr.c_str(),  dim},
+    };
+    SDL_Surface* fillSurf[3] = {};
+    SDL_Surface* outlineSurf[3] = {};
+    bool ok = true;
+    for (int i = 0; i < 3; i++) {
+        fillSurf[i]    = TTF_RenderUTF8_Blended(font, pieces[i].str, pieces[i].color);
+        outlineSurf[i] = TTF_RenderUTF8_Blended(font, pieces[i].str, black);
+        if (!fillSurf[i] || !outlineSurf[i]) ok = false;
+    }
     TTF_CloseFont(font);
-    if (!a || !b || !c) { compatLog("branding: text render FAIL — overlay disabled"); return; }
+    if (!ok) {
+        compatLog("branding: text render FAIL — overlay disabled");
+        for (int i = 0; i < 3; i++) { if (fillSurf[i]) SDL_FreeSurface(fillSurf[i]);
+                                       if (outlineSurf[i]) SDL_FreeSurface(outlineSurf[i]); }
+        return;
+    }
 
-    SDL_Surface* parts[3] = {a, b, c};
-    int w = a->w + b->w + c->w, h = a->h;
-    for (int i = 0; i < 3; i++) if (parts[i]->h > h) h = parts[i]->h;
+    const int OUTLINE = 2;  // px of stroke padding on every side
+    int w = OUTLINE * 2, h = 0;
+    for (int i = 0; i < 3; i++) { w += fillSurf[i]->w; if (fillSurf[i]->h > h) h = fillSurf[i]->h; }
+    h += OUTLINE * 2;
     SDL_Surface* combo = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ABGR8888);
     if (!combo) {
         compatLog("branding: combo surface FAIL");
-        for (int i = 0; i < 3; i++) SDL_FreeSurface(parts[i]);
+        for (int i = 0; i < 3; i++) { SDL_FreeSurface(fillSurf[i]); SDL_FreeSurface(outlineSurf[i]); }
         return;
     }
     SDL_FillRect(combo, nullptr, SDL_MapRGBA(combo->format, 0, 0, 0, 0));
-    int x = 0;
+    static const int kOffsets[8][2] = {
+        {-1,-1},{0,-1},{1,-1}, {-1,0},{1,0}, {-1,1},{0,1},{1,1}
+    };
+    int x = OUTLINE;
     for (int i = 0; i < 3; i++) {
-        SDL_Surface* s = parts[i];
-        SDL_SetSurfaceBlendMode(s, SDL_BLENDMODE_BLEND);
-        SDL_Rect dst = {x, 0, s->w, s->h};
-        SDL_BlitSurface(s, nullptr, combo, &dst);
-        x += s->w;
-        SDL_FreeSurface(s);
+        SDL_SetSurfaceBlendMode(outlineSurf[i], SDL_BLENDMODE_BLEND);
+        for (auto& o : kOffsets) {
+            SDL_Rect dst = {x + o[0], OUTLINE + o[1], outlineSurf[i]->w, outlineSurf[i]->h};
+            SDL_BlitSurface(outlineSurf[i], nullptr, combo, &dst);
+        }
+        x += fillSurf[i]->w;
+    }
+    x = OUTLINE;
+    for (int i = 0; i < 3; i++) {
+        SDL_SetSurfaceBlendMode(fillSurf[i], SDL_BLENDMODE_BLEND);
+        SDL_Rect dst = {x, OUTLINE, fillSurf[i]->w, fillSurf[i]->h};
+        SDL_BlitSurface(fillSurf[i], nullptr, combo, &dst);
+        x += fillSurf[i]->w;
+        SDL_FreeSurface(fillSurf[i]);
+        SDL_FreeSurface(outlineSurf[i]);
     }
 
     glGenTextures(1, &g_brand.tex);
@@ -883,22 +920,43 @@ static const int kProbeTolerance = 25;
 // this now runs for the whole session, not just briefly during loading) so a wrong
 // guess is cheap to recalibrate from the next compat_log.txt — this data is
 // exactly what's needed to correct kLoadingProbes without more guesswork.
-// Once we've seen the loading screen at least once and then lost the match
-// for a sustained stretch (not just a single flickered frame), permanently
-// latch the overlay off for the rest of the session — via g_brand.failed,
-// which drawBrandOverlay() already checks first thing. This is what makes
-// sure it's gone for good once the game reaches vehicle-select/upgrades/menu
-// (a completely different, bright background that won't match these dark
-// corners anyway) rather than depending solely on a live per-frame match
-// that could theoretically flicker back on if some later screen briefly
-// shares similar dark corners (e.g. a transition/loading flash mid-game).
-// Also saves the 3 glReadPixels/frame for the rest of the session once latched.
-static bool  s_everMatchedLoadingScreen = false;
-static int   s_mismatchStreak           = 0;
-static const int kMismatchLatchFrames   = 90;  // ~1.5s at 60fps
+// Two-sided debounce for the latch, tuned from two failed extremes seen on
+// real hardware:
+//   - A 90-frame SUSTAINED mismatch requirement (first attempt) was too
+//     slow: the loading→garage transition is multi-stage (fades through
+//     more than one dark moment), so a brief re-match mid-transition kept
+//     resetting the streak counter, and the overlay visibly disappeared
+//     then reappeared before finally latching — "it fades out then comes
+//     back, it shouldn't".
+//   - Latching on the very FIRST mismatched frame (second attempt) was too
+//     fast: real hardware showed it latching off at frame 161 (a couple of
+//     seconds in), while the loading screen normally holds for much longer
+//     — a single noisy/anti-aliased frame was enough to kill it for good.
+// Fix: require a few consecutive matching frames to CONFIRM we're really on
+// the loading screen (filters a stray single-frame false match), and a
+// short — not long — sustained mismatch to CONFIRM we've really left
+// (filters a stray single-frame false negative, without being slow enough
+// for a multi-second transition to fool it via a brief re-match).
+static int  s_matchStreak    = 0;
+static int  s_mismatchStreak = 0;
+static bool s_confirmedOnLoadingScreen = false;
+static const int kEntryConfirmFrames = 5;   // ~0.1s — filters single-frame noise
+static const int kExitConfirmFrames  = 8;   // short: reported lingering too long
+                                             // in the fuel-select screen at 20
+
+// glReadPixels is a genuine GPU pipeline stall — it forces the GPU to finish
+// everything queued so far and copy pixels back to CPU memory, breaking the
+// CPU/GPU overlap that keeps frame time low. Doing this every single frame
+// while the overlay is active is real, avoidable stutter. The background
+// doesn't change fast enough to need per-frame precision anyway — sampling
+// every few frames costs a few extra ms of detection latency (imperceptible)
+// for a big cut in stalls.
+static const int kProbeEveryNFrames = 4;
+static bool s_lastMatch = false;
 
 static bool isOnLoadingScreen(int frame) {
     if (g_brand.failed) return false;  // already latched off — skip the probe entirely
+    if (frame % kProbeEveryNFrames != 0) return s_lastMatch || s_confirmedOnLoadingScreen;
 
     uint8_t px[4];
     bool match = true;
@@ -917,17 +975,25 @@ static bool isOnLoadingScreen(int frame) {
     }
     if (frame % 300 == 0)
         compatLogFmt("branding: probe%s → %s", detail, match ? "MATCH" : "no match");
+    s_lastMatch = match;
 
     if (match) {
-        s_everMatchedLoadingScreen = true;
         s_mismatchStreak = 0;
-    } else if (s_everMatchedLoadingScreen) {
-        if (++s_mismatchStreak > kMismatchLatchFrames) {
-            g_brand.failed = true;  // permanently done for this session
+        if (!s_confirmedOnLoadingScreen && ++s_matchStreak >= kEntryConfirmFrames) {
+            s_confirmedOnLoadingScreen = true;
+            compatLogFmt("branding: confirmed on loading screen (frame %d)", frame);
+        }
+    } else {
+        s_matchStreak = 0;
+        if (s_confirmedOnLoadingScreen && ++s_mismatchStreak >= kExitConfirmFrames) {
+            g_brand.failed = true;  // confirmed past it — done for good
             compatLogFmt("branding: past loading screen (frame %d) — overlay off for rest of session", frame);
         }
     }
-    return match;
+    // Show the overlay whenever we're either confirmed-on or provisionally
+    // matching (i.e. don't wait for the entry debounce before ever drawing —
+    // that's just to decide when it's safe to LATCH, not to gate visibility).
+    return match || s_confirmedOnLoadingScreen;
 }
 
 // Draw the overlay quad over the game's already-rendered frame. Screen-space
@@ -1356,7 +1422,11 @@ void runGameOnMainThread(void* game_so_ptr,
             }
 
             ++frame;
-            if (frame % 300 == 0) {
+            // fflush() to the SD card is a real, if brief, stall on FAT32 —
+            // every 5s (300 frames) was adding a small periodic stutter for
+            // marginal benefit; every 15s is still plenty for "is it alive"
+            // diagnostics without paying that cost 3x as often.
+            if (frame % 900 == 0) {
                 compatLogFmt("game: frame %d", frame);
                 compatLogFlush();
             }

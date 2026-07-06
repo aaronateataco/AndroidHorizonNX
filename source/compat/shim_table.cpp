@@ -326,23 +326,40 @@ static int stub_open(const char* path, int flags, ...) {
 }
 
 // ─── __android_log_print (liblog) ────────────────────────────────────────────
+// This turned out to be THE dominant stutter source during actual gameplay,
+// not anything overlay/rendering related: games call this constantly (touch
+// state, pedal values, per-frame telemetry), each call's message differs
+// slightly (an embedded changing number), so compatLog's exact-match dedup
+// never collapses them — every single call was a distinct message hitting a
+// REAL SD-card fflush via the normal compatLog path. That's a steady stream
+// of disk writes throughout gameplay. Time-throttle instead of dropping
+// entirely: still useful for diagnostics, just capped to 2/sec regardless of
+// how often the game actually calls this.
+static bool androidLogThrottleOk() {
+    static uint64_t s_lastTick = 0;
+    uint64_t now = armGetSystemTick();
+    uint64_t elapsedMs = (now - s_lastTick) * 1000 / armGetSystemTickFreq();
+    if (elapsedMs < 500) return false;
+    s_lastTick = now;
+    return true;
+}
 static int android_log_print(int, const char* tag, const char* fmt, ...) {
     char buf[512];
     va_list va;
     va_start(va, fmt);
     vsnprintf(buf, sizeof(buf), fmt, va);
     va_end(va);
-    compatLogFmt("[%s] %s", tag ? tag : "?", buf);
+    if (androidLogThrottleOk()) compatLogFmt("[%s] %s", tag ? tag : "?", buf);
     return (int)strlen(buf);
 }
 static int android_log_write(int, const char* tag, const char* msg) {
-    compatLogFmt("[%s] %s", tag ? tag : "?", msg ? msg : "");
+    if (androidLogThrottleOk()) compatLogFmt("[%s] %s", tag ? tag : "?", msg ? msg : "");
     return 0;
 }
 static int android_log_vprint(int, const char* tag, const char* fmt, va_list va) {
     char buf[512];
     vsnprintf(buf, sizeof(buf), fmt, va);
-    compatLogFmt("[%s] %s", tag ? tag : "?", buf);
+    if (androidLogThrottleOk()) compatLogFmt("[%s] %s", tag ? tag : "?", buf);
     return (int)strlen(buf);
 }
 static int android_log_buf_print(int, int, const char* tag, const char* fmt, ...) {

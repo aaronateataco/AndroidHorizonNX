@@ -1,5 +1,6 @@
 #include "compat/loader.h"
 #include "compat/jni.h"
+#include <switch.h>
 #include <string.h>
 #include <cstring>
 #include <cstdio>
@@ -398,8 +399,22 @@ static void s_CallStaticVoidMethodV(JNIEnv*, jclass, jmethodID mid, va_list args
     }
     if (strcmp(e->name, "debugStringOnAndroid") == 0) {
         const char* msg = (const char*)va_arg(args, jstring);
-        if (logOnce("gdbg", msg ? msg : "null"))
+        // Exact-match dedup (logOnce) doesn't help here: many of these embed
+        // a continuously-changing value ("Pedals down = 0.083333", a new
+        // number practically every frame during driving), so every call
+        // looked "new" and triggered a real SD-card fflush via the normal
+        // compatLog path — a steady stream of disk writes throughout actual
+        // gameplay, not just loading. That's a much bigger stutter source
+        // than anything overlay-related. Time-throttle instead: at most
+        // 2/sec regardless of content, which is still plenty to see what
+        // the game's doing without flushing every single frame.
+        static uint64_t s_lastDebugTick = 0;
+        uint64_t nowTick = armGetSystemTick();
+        uint64_t elapsedMs = (nowTick - s_lastDebugTick) * 1000 / armGetSystemTickFreq();
+        if (elapsedMs >= 500) {
             compatLogFmt("game debug: %s", msg ? msg : "null");
+            s_lastDebugTick = nowTick;
+        }
         return;
     }
     // trackPage(pageName) fires as the game enters a new screen. The Shop
