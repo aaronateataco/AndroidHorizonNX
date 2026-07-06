@@ -1,0 +1,147 @@
+name: Build & Release
+
+# Manual only — never runs on push/PR. GitHub already restricts who can
+# dispatch a workflow manually to accounts with write access to the repo;
+# the membership check below is a second, explicit belt-and-suspenders
+# check that the person triggering it is actually in the AndroidHorizon org.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v0.2.0-testing-alpha (leave blank to auto-bump the patch number)"
+        required: false
+        type: string
+      prerelease:
+        description: "Mark as a pre-release"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  check-permission:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify triggering user is an AndroidHorizon org member
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/orgs/AndroidHorizon/members/${{ github.actor }}")
+          if [ "$STATUS" != "204" ]; then
+            echo "::error::${{ github.actor }} is not a public member of the AndroidHorizon org (or membership is private) — refusing to release."
+            exit 1
+          fi
+          echo "${{ github.actor }} confirmed as an AndroidHorizon org member."
+
+  build-and-release:
+    needs: check-permission
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout launcher (AndroidHorizonNX)
+        uses: actions/checkout@v4
+        with:
+          path: launcher
+          fetch-depth: 0
+
+      - name: Checkout Translation Core
+        uses: actions/checkout@v4
+        with:
+          repository: AndroidHorizon/AHNX-Translation-Core
+          path: core
+          fetch-depth: 0
+
+      - name: Build launcher
+        run: docker run --rm -v ${{ github.workspace }}/launcher:/project -w /project devkitpro/devkita64:latest make
+
+      - name: Build Translation Core (x64)
+        run: docker run --rm -v ${{ github.workspace }}/core:/project -w /project devkitpro/devkita64:latest make
+
+      - name: Build Translation Core (x32, placeholder)
+        run: docker run --rm -v ${{ github.workspace }}/core/core32:/project -w /project devkitpro/devkita64:latest make
+
+      - name: Assemble SD-card layout
+        run: |
+          mkdir -p dist/AndroidHorizonNX
+          cp launcher/AndroidHorizonNX.nro dist/AndroidHorizonNX.nro
+          cp core/AHNX-Translation-Core-x64.nro dist/AndroidHorizonNX/AHNX-Translation-Core-x64.nro
+          cp core/core32/AHNX-Translation-Core-x32.nro dist/AndroidHorizonNX/AHNX-Translation-Core-x32.nro
+          (cd dist && zip -r ../AndroidHorizon-sdcard.zip .)
+
+      - name: Determine release tag
+        id: ver
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            TAG="${{ inputs.version }}"
+          else
+            LAST_TAG=$(cd launcher && git tag --sort=-creatordate | head -1)
+            if [ -z "$LAST_TAG" ]; then
+              TAG="v0.1.1-testing-alpha"
+            else
+              NUM=$(echo "$LAST_TAG" | grep -oE '[0-9]+' | sed -n '2p')
+              MAJOR_MINOR=$(echo "$LAST_TAG" | grep -oE '^v[0-9]+\.[0-9]+')
+              NEXT=$((NUM + 1))
+              TAG="${MAJOR_MINOR}.${NEXT}-testing-alpha"
+            fi
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Releasing as $TAG"
+
+      - name: Generate in-depth changelog
+        id: changelog
+        run: |
+          LAUNCHER_LAST_TAG=$(cd launcher && git tag --sort=-creatordate | head -1)
+          {
+            echo "## Android Horizon — ${{ steps.ver.outputs.tag }}"
+            echo
+            echo "Automated build via GitHub Actions. Bundles the launcher + both Translation Core binaries — drag \`AndroidHorizonNX.nro\` and the \`AndroidHorizonNX/\` folder from \`AndroidHorizon-sdcard.zip\` straight onto your SD card's \`/switch/\` folder."
+            echo
+            echo "### Launcher (AndroidHorizonNX) changes"
+            echo
+            if [ -n "$LAUNCHER_LAST_TAG" ]; then
+              (cd launcher && git log "${LAUNCHER_LAST_TAG}..HEAD" --pretty=format:"- %s (%h, %ad)" --date=short)
+            else
+              (cd launcher && git log --pretty=format:"- %s (%h, %ad)" --date=short)
+            fi
+            echo
+            echo
+            echo "### AHNX-Translation-Core changes (most recent commits)"
+            echo
+            (cd core && git log --pretty=format:"- %s (%h, %ad)" --date=short -30)
+            echo
+            echo
+            echo "### Build info"
+            echo
+            echo "- Launcher commit: \`$(cd launcher && git rev-parse HEAD)\`"
+            echo "- Translation Core commit: \`$(cd core && git rev-parse HEAD)\`"
+            echo "- Built: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "- Triggered by: @${{ github.actor }}"
+          } > CHANGELOG.md
+          cat CHANGELOG.md
+
+      - name: Tag the launcher repo
+        working-directory: launcher
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.ver.outputs.tag }}" -m "${{ steps.ver.outputs.tag }}"
+          git push origin "${{ steps.ver.outputs.tag }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRERELEASE_FLAG="--prerelease"
+          if [ "${{ inputs.prerelease }}" = "false" ]; then PRERELEASE_FLAG=""; fi
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ steps.ver.outputs.tag }}" \
+            --notes-file CHANGELOG.md \
+            $PRERELEASE_FLAG \
+            launcher/AndroidHorizonNX.nro \
+            core/AHNX-Translation-Core-x64.nro \
+            core/core32/AHNX-Translation-Core-x32.nro \
+            AndroidHorizon-sdcard.zip
