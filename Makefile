@@ -10,18 +10,20 @@ TOPDIR ?= $(CURDIR)
 include $(DEVKITPRO)/libnx/switch_rules
 
 #---------------------------------------------------------------------------------
-TARGET		:=	AHNX-Translation-Core-x64
+# This is the picker/launcher half of the two-part AHNX split: it only scans
+# APKs, shows the list, and chain-loads into AHNX-Translation-Core-x64 (or
+# the x32 placeholder) via envSetNextLoad — it has no ELF loader or JNI shim
+# of its own. The engine lives in a separate repo:
+# https://github.com/AndroidHorizon/AHNX-Translation-Core
+TARGET		:=	AndroidHorizonNX
 BUILD		:=	build
-SOURCES		:=	source source/compat
+SOURCES		:=	source
 DATA		:=	data
 INCLUDES	:=	include
 ROMFS		:=	romfs
 
-APP_TITLE	:= AHNX Translation Core (x64)
+APP_TITLE	:= Android Horizon
 APP_AUTHOR	:= aaronworld.uk
-# NACP version (shown by hbmenu): 0.1.<build number>. The build number is
-# bumped by the outer make before the inner make (which creates the .nacp)
-# re-parses this file, so the inner make always sees the fresh number.
 APP_VERSION	:= 0.1.$(shell cat $(TOPDIR)/build_number.txt 2>/dev/null || echo 0)
 
 #---------------------------------------------------------------------------------
@@ -37,12 +39,10 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=c++17
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:=	-lSDL2_ttf -lSDL2_image -lSDL2_mixer -lSDL2main -lSDL2 \
-			-lopusfile -lopus -lFLAC -lvorbisidec -logg -lmpg123 -lmodplug \
+LIBS	:=	-lSDL2_ttf -lSDL2_image -lSDL2main -lSDL2 \
 			-lfreetype -lharfbuzz \
 			-lpng -ljpeg -lwebp -lwebpdemux \
 			-lminizip -lbz2 -lz \
-			-lcurl -lmbedtls -lmbedx509 -lmbedcrypto \
 			-lEGL -lGLESv2 -lglapi -ldrm_nouveau \
 			-lnx
 
@@ -83,7 +83,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-ifeq ($(strip $(ICON)),)
+ifeq ($(strip $(NO_ICON)),)
 	icons := $(wildcard *.jpg)
 	ifneq (,$(findstring $(TARGET).jpg,$(icons)))
 		export APP_ICON := $(CURDIR)/$(TARGET).jpg
@@ -92,12 +92,9 @@ ifeq ($(strip $(ICON)),)
 			export APP_ICON := $(CURDIR)/icon.jpg
 		endif
 	endif
-else
-	export APP_ICON := $(CURDIR)/$(ICON)
-endif
-
-ifeq ($(strip $(NO_ICON)),)
-	export NROFLAGS += --icon=$(APP_ICON)
+	ifneq ($(strip $(APP_ICON)),)
+		export NROFLAGS += --icon=$(APP_ICON)
+	endif
 endif
 
 ifeq ($(strip $(NO_NACP)),)
@@ -114,11 +111,7 @@ all: $(BUILD)
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@NEW=$$(( $$(cat $(CURDIR)/build_number.txt 2>/dev/null || echo 0) + 1 )); \
-	 echo $$NEW > $(CURDIR)/build_number.txt; \
-	 printf '#pragma once\n#define BUILD_NUMBER %d\n#define BUILD_VERSION "v0.1.%d testing-alpha"\n' $$NEW $$NEW \
-	   > $(CURDIR)/include/build_number.h
-	@rm -f $(CURDIR)/$(TARGET).nacp  # force regen so the NACP version tracks the build number
+	@rm -f $(CURDIR)/$(TARGET).nacp
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 clean:

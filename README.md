@@ -126,16 +126,23 @@ If the requested package isn't installed (or the argument is stale/wrong), Andro
 
 Requires [devkitPro](https://devkitpro.org/) with `devkitA64` and `libnx` installed.
 
-As of 0.1.109, Android Horizon is split into three separate NROs — a small launcher/picker, and the actual game-loading "Translation Core" engine as its own binary (plus an x32 placeholder, see [Architecture](#architecture--launcher--translation-core) below). Build all three and arrange them into the real SD-card layout in one step:
+As of 0.1.120, Android Horizon is split across **two repositories** as well as two NRO binaries — this repo builds the launcher/picker only; the actual game-loading "Translation Core" engine (plus the x32 placeholder) lives in **[AHNX-Translation-Core](https://github.com/AndroidHorizon/AHNX-Translation-Core)**. See [Architecture](#architecture--launcher--translation-core) below for why.
+
+To build everything and get a drag-to-SD-card layout, clone both repos as siblings:
 
 ```sh
 export DEVKITPRO=/opt/devkitpro
+git clone https://github.com/AndroidHorizon/AndroidHorizonNX.git
+git clone https://github.com/AndroidHorizon/AHNX-Translation-Core.git
+cd AndroidHorizonNX
 ./build_all.sh
 ```
 
 Output: `testingbuild/AndroidHorizonNX.nro` (copy to `sdmc:/switch/`) and `testingbuild/AndroidHorizonNX/` (copy the whole folder to `sdmc:/switch/AndroidHorizonNX/`) — drag the contents of `testingbuild/` straight onto the SD card.
 
-Each piece also has its own standalone Makefile if you only need to rebuild one: `make` (repo root → Translation Core x64), `make -C launcher`, `make -C core32`.
+Just want the launcher on its own? `make` in this repo builds `AndroidHorizonNX.nro` by itself. The Core repo has its own build instructions for its two pieces.
+
+**Prebuilt releases** (no toolchain needed) are published on this repo's [Releases page](https://github.com/AndroidHorizon/AndroidHorizonNX/releases) — each one bundles the launcher plus both Translation Core builds, ready to drag onto an SD card.
 
 ### Dependencies (via pacman/devkitPro)
 
@@ -149,13 +156,12 @@ switch-mesa switch-glad switch-curl switch-mbedtls
 
 ## Architecture — launcher + Translation Core
 
-Android Horizon is split into two pieces that chain-load into each other, rather than one monolithic binary:
+Android Horizon is split into two pieces, in two separate repos, that chain-load into each other rather than being one monolithic binary:
 
-- **`AndroidHorizonNX.nro`** (built from `launcher/`) — the picker. Scans `sdmc:/AndroidHorizonNX/apks/`, tags each APK with which native ABI(s) it ships, shows the list, and — on launch — hands off to the right engine via `envSetNextLoad(path, argv)` (the same chain-load mechanism [forwarders](#forwarders--a-dedicated-home-menu-icon-per-game) use), passing the package name as `argv[1]`. It has no ELF loader, JNI shim, or game-engine code of its own at all.
-- **`AHNX-Translation-Core-x64.nro`** (built from the repo root, `source/` + `source/compat/`) — the real engine: everything this README describes above (ELF loading, JIT, the JNI/Bionic compat layer, audio, sensors, the whole thing). It always expects a package name in `argv[1]` — launching it directly without one just shows a message pointing back at the launcher, it's not meant to be run standalone.
-- **`AHNX-Translation-Core-x32.nro`** (built from `core32/`) — a placeholder. **32-bit (`armeabi-v7a`) binaries are not supported at the moment** — running AArch32 code on Switch is possible in principle (there's real prior art for it via a per-title Atmosphere address-space override), but the one real precedent project we found for this depends on a 32-bit build of libnx that isn't publicly available anywhere, and building one from scratch is a substantial, uncertain undertaking of its own. The launcher detects 32-bit-only APKs during scanning and blocks launching them with an explanation, rather than attempting to chain-load into this placeholder — it exists to complete the on-disk layout, not because it does anything yet.
+- **[AndroidHorizonNX](https://github.com/AndroidHorizon/AndroidHorizonNX)** (this repo) → builds `AndroidHorizonNX.nro` — the picker. Scans `sdmc:/AndroidHorizonNX/apks/`, tags each APK with which native ABI(s) it ships, shows the list, and — on launch — hands off to the right engine via `envSetNextLoad(path, argv)` (the same chain-load mechanism [forwarders](#forwarders--a-dedicated-home-menu-icon-per-game) use), passing the package name as `argv[1]`. It has no ELF loader, JNI shim, or game-engine code of its own at all — this repo is deliberately small.
+- **[AHNX-Translation-Core](https://github.com/AndroidHorizon/AHNX-Translation-Core)** → builds `AHNX-Translation-Core-x64.nro` — the real engine: everything this README describes above (ELF loading, JIT, the JNI/Bionic compat layer, audio, sensors, the whole thing). It always expects a package name in `argv[1]` — launching it directly without one just shows a message pointing back at the launcher, it's not meant to be run standalone. The same repo also builds `AHNX-Translation-Core-x32.nro` — a placeholder. **32-bit (`armeabi-v7a`) binaries are not supported at the moment** — running AArch32 code on Switch is possible in principle (there's real prior art for it via a per-title Atmosphere address-space override), but the one real precedent project we found for this depends on a 32-bit build of libnx that isn't publicly available anywhere, and building one from scratch is a substantial, uncertain undertaking of its own. The launcher detects 32-bit-only APKs during scanning and blocks launching them with an explanation, rather than attempting to chain-load into this placeholder — it exists to complete the on-disk layout, not because it does anything yet.
 
-Why split it this way: the two execution states (AArch64 for 64-bit games, AArch32 for a hypothetical future 32-bit engine) can't coexist in one running process — a Switch process runs in one execution state for its whole lifetime. Splitting the picker out from the engine means adding a real 32-bit engine later is "point the launcher at a new NRO," not "rewrite everything."
+Why split it this way: the two execution states (AArch64 for 64-bit games, AArch32 for a hypothetical future 32-bit engine) can't coexist in one running process — a Switch process runs in one execution state for its whole lifetime. Splitting the picker out from the engine means adding a real 32-bit engine later is "point the launcher at a new NRO," not "rewrite everything." Splitting them into separate *repos* on top of that keeps the launcher (small, stable, rarely needs to change) decoupled from the engine (where almost all the actual development happens) — releases and issues for "the app won't launch" versus "the game crashes" land in the right place instead of one giant repo mixing both concerns.
 
 ---
 

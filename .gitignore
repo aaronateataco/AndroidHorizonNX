@@ -1,0 +1,14 @@
+# Build artifacts — not tracked on main. Use ./build_all.sh to build locally,
+# or grab a prebuilt release from the Releases page. The `test` branch keeps
+# a snapshot of built binaries for Aaron's own local testing convenience.
+build/
+*.o
+*.d
+*.elf
+*.nacp
+*.nro
+*.map
+*.lst
+*.pfs0
+*.nso
+testingbuild/
