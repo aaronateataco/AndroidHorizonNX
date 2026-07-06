@@ -787,7 +787,23 @@ static const int kProbeTolerance = 25;
 // this now runs for the whole session, not just briefly during loading) so a wrong
 // guess is cheap to recalibrate from the next compat_log.txt — this data is
 // exactly what's needed to correct kLoadingProbes without more guesswork.
+// Once we've seen the loading screen at least once and then lost the match
+// for a sustained stretch (not just a single flickered frame), permanently
+// latch the overlay off for the rest of the session — via g_brand.failed,
+// which drawBrandOverlay() already checks first thing. This is what makes
+// sure it's gone for good once the game reaches vehicle-select/upgrades/menu
+// (a completely different, bright background that won't match these dark
+// corners anyway) rather than depending solely on a live per-frame match
+// that could theoretically flicker back on if some later screen briefly
+// shares similar dark corners (e.g. a transition/loading flash mid-game).
+// Also saves the 3 glReadPixels/frame for the rest of the session once latched.
+static bool  s_everMatchedLoadingScreen = false;
+static int   s_mismatchStreak           = 0;
+static const int kMismatchLatchFrames   = 90;  // ~1.5s at 60fps
+
 static bool isOnLoadingScreen(int frame) {
+    if (g_brand.failed) return false;  // already latched off — skip the probe entirely
+
     uint8_t px[4];
     bool match = true;
     char detail[256]; detail[0] = '\0';
@@ -805,6 +821,16 @@ static bool isOnLoadingScreen(int frame) {
     }
     if (frame % 300 == 0)
         compatLogFmt("branding: probe%s → %s", detail, match ? "MATCH" : "no match");
+
+    if (match) {
+        s_everMatchedLoadingScreen = true;
+        s_mismatchStreak = 0;
+    } else if (s_everMatchedLoadingScreen) {
+        if (++s_mismatchStreak > kMismatchLatchFrames) {
+            g_brand.failed = true;  // permanently done for this session
+            compatLogFmt("branding: past loading screen (frame %d) — overlay off for rest of session", frame);
+        }
+    }
     return match;
 }
 

@@ -272,6 +272,11 @@ This is the real blocker on docked mode: right now only touch input is implement
 
 > Most recent first.
 
+### 0.1.80 — Overlay confirmed working + permanent hide latch
+
+- [x] **Overlay confirmed showing on real hardware** — the corner recalibration worked. Font/sizing is close to (not pixel-identical to) HCR's own version text — expected, since it's our own bundled font standing in for their bespoke one; can be tuned further with a fresh reference screenshot if wanted.
+- [x] **Overlay now permanently disappears once past loading, not just per-frame** — previously it relied purely on a live pixel match every frame, which is correct but only reactive; now, once it's matched the loading screen at least once and then failed to match for a sustained ~1.5s (not just one flickered frame), it latches off for the rest of the session via the same one-shot-failure flag used for init errors. Guarantees it can't reappear later (e.g. if the vehicle/upgrade/menu screens ever briefly share similar dark corners during a transition) and skips the probe entirely for the rest of the session once latched, at zero further cost.
+
 ### 0.1.79 — Overlay finally calibrated correctly + a real lead on the flicker
 
 - [x] **Overlay probe fully calibrated** — the two top corners were already matching in the last log, but the bottom-left corner reads genuinely darker `(16,19,27)` than the top corners `(46,51,63)` — the background vignette isn't uniform, it darkens further into that corner. Since all 3 probes have to match, this one wrong value was blocking the overlay every time even though 2 of 3 were already correct.
