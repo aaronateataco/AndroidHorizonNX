@@ -1,0 +1,13 @@
+Android Horizon launcher starting
+  BFTTF open failed: Couldn't load font file
+  font: romfs DejaVuSans
+  BFTTF open failed: Couldn't load font file
+  font: romfs DejaVuSans
+  BFTTF open failed: Couldn't load font file
+  font: romfs DejaVuSans
+  NintendoExt font unavailable — text hints
+init complete
+envHasNextLoad: true
+launchGame: chain-loading to sdmc:/switch/AndroidHorizonNX/AHNX-Translation-Core-x64.nro argv="sdmc:/switch/AndroidHorizonNX/AHNX-Translation-Core-x64.nro com.fingersoft.hillclimb"
+envSetNextLoad OK — returning from main() to hand off
+cleanup done

@@ -1313,35 +1313,6 @@ void runGameOnMainThread(void* game_so_ptr,
         compatLogFlush();
     }
 
-    // Save the current GL back buffer as a PNG on the SD card — README material
-    // and proof of what the game actually rendered at that point.
-    auto saveGameScreenshot = [](int frame) {
-        mkdir("sdmc:/AndroidHorizonNX/screenshots", 0777);
-        char path[96];
-        snprintf(path, sizeof(path),
-                 "sdmc:/AndroidHorizonNX/screenshots/game_frame%d.png", frame);
-        const int W = 1280, H = 720;
-        uint8_t* px = (uint8_t*)malloc((size_t)W * H * 4);
-        if (!px) return;
-        glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, px);
-        uint8_t* row = (uint8_t*)malloc((size_t)W * 4);
-        if (row) {  // GL origin is bottom-left — flip rows for the PNG
-            for (int y = 0; y < H / 2; y++) {
-                memcpy(row, px + (size_t)y * W * 4, (size_t)W * 4);
-                memcpy(px + (size_t)y * W * 4, px + (size_t)(H - 1 - y) * W * 4, (size_t)W * 4);
-                memcpy(px + (size_t)(H - 1 - y) * W * 4, row, (size_t)W * 4);
-            }
-            free(row);
-        }
-        SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(
-            px, W, H, 32, W * 4, SDL_PIXELFORMAT_ABGR8888);
-        if (s) {
-            if (IMG_SavePNG(s, path) == 0) compatLogFmt("screenshot: %s", path);
-            SDL_FreeSurface(s);
-        }
-        free(px);
-    };
-
     typedef void (*NativeRender_fn)(JNIEnv*, jobject);
     NativeRender_fn nativeRender = (NativeRender_fn)so->findSym(
         "Java_org_cocos2dx_lib_Cocos2dxRenderer_nativeRender");
@@ -1372,6 +1343,16 @@ void runGameOnMainThread(void* game_so_ptr,
         compatLogFlush();
         volatile int frame = 0;
         bool crashed = false;
+        // Frame-stall detector: measures real wall-clock time between one
+        // completed frame (right after its swap) and the next. A game
+        // holding a steady 60fps takes ~16.6ms/frame; anything well past
+        // that for a single frame is a real, momentary hitch, not scheduler
+        // noise. Logging exactly which frame and how long it stopped for is
+        // what actually tells us WHERE to spend future optimization effort
+        // instead of guessing from "it feels stuttery sometimes".
+        static constexpr uint64_t kFrameStallMs       = 33;   // ~worse than 30fps for one frame
+        static constexpr uint64_t kFrameStallSevereMs = 100;  // ~worse than 10fps — a real freeze
+        uint64_t lastFrameTick = 0;
         while (appletMainLoop()) {
             // Recovery window covers the whole iteration (event poll, render,
             // swap) — a fault inside eglSwapBuffers/SDL used to rethrow to the
@@ -1435,15 +1416,40 @@ void runGameOnMainThread(void* game_so_ptr,
                 // like a dark vignette + white bar at these exact points).
                 if (isOnLoadingScreen(frame)) drawBrandOverlay();
 
-                // Milestone captures: early splash, post-splash, in-menu
-                if (frame == 30 || frame == 300 || frame == 900)
-                    saveGameScreenshot(frame);
+                // Milestone screenshots (frame 30/300/900) were removed —
+                // frame-stall logging (see kFrameStallMs below) caught this
+                // capture itself causing a real ~1000ms stall at frame 900
+                // (SDL_RenderReadPixels + IMG_SavePNG are both genuinely
+                // expensive). The images they produced are already captured
+                // and committed at docs/screenshots/game_frame{30,300,900}.png
+                // and embedded in the README — nothing left to gain from
+                // paying this cost on every future test run.
 
                 // Swap buffers (Cocos2d-x doesn't call eglSwapBuffers itself)
                 if (g_egl_display != EGL_NO_DISPLAY && g_egl_surface != EGL_NO_SURFACE)
                     eglSwapBuffers(g_egl_display, g_egl_surface);
                 else if (win)
                     SDL_GL_SwapWindow(win);
+
+                // Frame-stall detector — measured right after the swap so it
+                // covers the whole frame (event poll, nativeRender, overlay,
+                // swap) exactly once per iteration. Logged only past the
+                // threshold, so a smooth 60fps session stays silent; this is
+                // a genuinely rare event (not per-frame telemetry), so a real
+                // disk write per stall is fine — nothing like the earlier
+                // per-frame logging bugs this project already fixed.
+                {
+                    uint64_t nowTick = armGetSystemTick();
+                    if (lastFrameTick != 0) {
+                        uint64_t deltaMs = (nowTick - lastFrameTick) * 1000 / armGetSystemTickFreq();
+                        if (deltaMs >= kFrameStallMs) {
+                            compatLogFmt("%s: frame %d stalled for %llums",
+                                         deltaMs >= kFrameStallSevereMs ? "STALL(severe)" : "stall",
+                                         frame, (unsigned long long)deltaMs);
+                        }
+                    }
+                    lastFrameTick = nowTick;
+                }
 
                 g_in_recover = false;
             } else {

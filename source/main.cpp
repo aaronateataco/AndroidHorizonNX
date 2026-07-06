@@ -982,154 +982,103 @@ struct App {
 
 // ---------------------------------------------------------------------------
 // Forwarder support — a small NRO (or Sphaira/hbmenu entry) can chain-load us
-// with a package name as argv[1] via libnx's envSetNextLoad(path, argv), the
-// same mechanism RetroArch forwarders use to boot straight into a ROM+core
-// instead of RetroArch's own content browser. libnx's crt0 already parses the
+// with a package name via libnx's envSetNextLoad(path, argv), the same
+// mechanism RetroArch forwarders use to boot straight into a ROM+core instead
+// of RetroArch's own content browser. libnx's crt0 already parses the
 // loader-provided argument block into plain argc/argv before main() runs, so
 // no envGetArgv() plumbing is needed here — just read argv like any other
 // command-line program.
+//
+// argv[0] MUST be this binary's own real path, NOT the package name. libnx's
+// romfsInit() falls back to argv[0] to find and open its own .nro file on
+// the SD card and read its embedded RomFS section — overwrite argv[0] with
+// anything else and RomFS mounting silently fails, which took down every
+// font load immediately (confirmed via this binary's own log.txt: "BFTTF
+// open failed" + "romfs font open failed" for all three fonts, then "Font
+// load failed" and an early exit — no compat_log.txt was ever opened,
+// because that happens later in runLaunch(), well past where this failed).
+// The caller (launcher/source/main.cpp) passes "<our own path> <package>"
+// as the argv string, so the real argument lands at argv[1], same as any
+// normal argv[0]-is-the-program-path command line.
+// ---------------------------------------------------------------------------
+// This binary is the ENGINE half of a two-part split: the AHNX launcher
+// (kept as a separate, smaller NRO — see launcher/) shows the app list and
+// chain-loads here via envSetNextLoad(path, argv) with a package name in
+// argv[1] — the same mechanism the earlier single-binary "forwarder mode"
+// used, just now the ALWAYS path instead of a fallback. This binary has no
+// interactive picker of its own any more; it always expects a package name.
 int main(int argc, char** argv) {
     App app;
 
     if (!app.init()) return 1;
-    avatarStart();
 
     mkdir(APK_DIR, 0777);
 
-    // Scanning splash
     app.drawBackground();
     app.drawHeaderBar();
     app.drawText(app.fSm, "Scanning for APKs...", C_GRAY, 30, LIST_Y + 30);
     SDL_RenderPresent(app.rdr);
 
     app.apks = scanApks(APK_DIR);
-    app.loadIcons();
 
-    // Direct-launch (forwarder) mode: argv[1] names a package to boot
-    // straight into, skipping the app-list UI entirely — same experience as
-    // a dedicated home-menu icon for one specific game.
-    if (argc > 1 && argv[1] && argv[1][0]) {
-        const char* wantPkg = argv[1];
-        int idx = -1;
+    // log.txt (opened early in app.init(), unlike compat_log.txt which only
+    // opens once launchApk() runs) — cheap insurance so a failure anywhere
+    // between here and runLaunch() still leaves a trace of what argv held.
+    char argvDbg[160];
+    snprintf(argvDbg, sizeof(argvDbg), "core-x64: argc=%d argv[0]=%s argv[1]=%s",
+             argc, (argc > 0 && argv[0]) ? argv[0] : "(none)",
+             (argc > 1 && argv[1]) ? argv[1] : "(none)");
+    logMsg(argvDbg);
+
+    const char* wantPkg = (argc > 1 && argv[1] && argv[1][0]) ? argv[1] : nullptr;
+    int idx = -1;
+    if (wantPkg) {
         for (size_t i = 0; i < app.apks.size(); i++) {
             if (app.apks[i].packageName == wantPkg) { idx = (int)i; break; }
         }
-        if (idx >= 0) {
-            const ApkInfo& apk = app.apks[idx];
-            bool skip = apk.installed;
-            LaunchResult res = app.runLaunch(apk, skip);
-            if (!skip) app.apks[idx].installed = true;
-            // A forwarder is meant to look like a dedicated launcher for
-            // this one game, not a detour through our full app list. Every
-            // successful game session now exits the whole process directly
-            // from inside the game loop itself (crash or deliberate quit
-            // alike) — runLaunch() only returns here at all when that DIDN'T
-            // happen (APK/ELF load failure, or nativeRender missing), so
-            // reaching this line always means something worth explaining
-            // before we close back to the Switch home menu.
-            app.showLaunchResult(res, idx);
-            return 0;
-        }
-        // Requested package not found/installed — fall back to the normal
-        // picker instead of silently doing nothing, so a stale/misconfigured
-        // forwarder still leaves you somewhere useful rather than a blank
-        // screen.
-        compatLogFmt("forwarder: requested package '%s' not found in %s — showing picker instead",
-                     wantPkg, APK_DIR);
-        app.noticeText  = std::string("Forwarder target \"") + wantPkg + "\" not found — showing all APKs";
-        app.noticeUntil = SDL_GetTicks() + 6000;
     }
 
-    app.render();
-
-    bool   quit      = false;
-    Uint32 lastStick = 0;
-
-    while (!quit) {
-        SDL_Event ev;
-
-        while (SDL_PollEvent(&ev)) {
-            if (ev.type == SDL_QUIT) { quit = true; break; }
-
-            if (ev.type == SDL_JOYBUTTONDOWN) {
-                switch (ev.jbutton.button) {
-                    case BTN_PLUS:
-                        quit = true;
-                        break;
-
-                    case BTN_A:
-                        if (app.gameRanOnce) { app.noticeUntil = SDL_GetTicks() + 4000; break; }
-                        if (!app.apks.empty()) {
-                            const ApkInfo& apk = app.apks[app.selected];
-                            bool skip = apk.installed;
-                            LaunchResult res = app.runLaunch(apk, skip);
-                            if (!skip) app.apks[app.selected].installed = true;
-                            app.showLaunchResult(res, app.selected);
-                        }
-                        break;
-
-                    case BTN_X:
-                        if (app.gameRanOnce) { app.noticeUntil = SDL_GetTicks() + 4000; break; }
-                        if (!app.apks.empty()) {
-                            const ApkInfo& apk = app.apks[app.selected];
-                            LaunchResult res = app.runLaunch(apk, false);
-                            app.apks[app.selected].installed = true;
-                            app.showLaunchResult(res, app.selected);
-                        }
-                        break;
-
-                    case BTN_Y:
-                        app.rescan();
-                        break;
-
-                    case BTN_MINUS:
-                        app.showAbout();
-                        break;
-
-                    case BTN_B:
-                        break;
-                }
+    if (idx < 0) {
+        // Launched with no/unknown package — this binary isn't meant to be
+        // run directly. Say so plainly instead of showing a blank screen.
+        compatLogFmt("core-x64: no valid package argument (got '%s') — this binary "
+                     "is launched by the AHNX launcher, not directly",
+                     wantPkg ? wantPkg : "(none)");
+        app.drawBackground();
+        app.drawHeaderBar();
+        app.drawText(app.fLg, "AHNX Translation Core (x64)", C_WHITE, 30, LIST_Y + 30);
+        app.drawText(app.fSm,
+            "This is the game-loading engine, not the launcher — it needs a "
+            "package name to run.", C_GRAY, 30, LIST_Y + 76);
+        app.drawText(app.fSm,
+            "Launch a game from the Android Horizon app list instead.",
+            C_GRAY, 30, LIST_Y + 104);
+        app.drawFooterBar({{app.BG(app.GLYPH_PLUS, "+"), "Quit"}});
+        SDL_RenderPresent(app.rdr);
+        bool done = false;
+        while (!done) {
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev)) {
+                if (ev.type == SDL_QUIT) done = true;
+                if (ev.type == SDL_JOYBUTTONDOWN && ev.jbutton.button == BTN_PLUS) done = true;
             }
-
-            if (ev.type == SDL_JOYHATMOTION) {
-                if (ev.jhat.value & SDL_HAT_DOWN) {
-                    if (!app.apks.empty() && app.selected < (int)app.apks.size() - 1) {
-                        app.selected++;
-                        if (app.selected >= app.scroll + VISIBLE) app.scroll++;
-                    }
-                }
-                if (ev.jhat.value & SDL_HAT_UP) {
-                    if (!app.apks.empty() && app.selected > 0) {
-                        app.selected--;
-                        if (app.selected < app.scroll) app.scroll--;
-                    }
-                }
-            }
-
-            if (ev.type == SDL_JOYAXISMOTION && ev.jaxis.axis == 1) {
-                Uint32 now = SDL_GetTicks();
-                if (now - lastStick > 180) {
-                    if (ev.jaxis.value > 16384 && !app.apks.empty() &&
-                        app.selected < (int)app.apks.size() - 1) {
-                        app.selected++;
-                        if (app.selected >= app.scroll + VISIBLE) app.scroll++;
-                        lastStick = now;
-                    } else if (ev.jaxis.value < -16384 && !app.apks.empty() &&
-                               app.selected > 0) {
-                        app.selected--;
-                        if (app.selected < app.scroll) app.scroll--;
-                        lastStick = now;
-                    }
-                }
-            }
+            SDL_Delay(16);
         }
-
-        // Continuous ~60fps render — the starfield twinkles and the focus
-        // card glow pulses even with no input.
-        app.render();
-        SDL_Delay(16);
+        app.cleanup();
+        return 1;
     }
 
+    const ApkInfo& apk = app.apks[idx];
+    bool skip = apk.installed;
+    LaunchResult res = app.runLaunch(apk, skip);
+    if (!skip) app.apks[idx].installed = true;
+    // Every successful game session now exits the whole process directly
+    // from inside the game loop itself (crash or deliberate quit alike) —
+    // runLaunch() only returns here at all when that DIDN'T happen (APK/ELF
+    // load failure, or nativeRender missing), so reaching this line always
+    // means something worth explaining before closing back to the launcher
+    // (or the Switch home menu, if this was launched standalone for testing).
+    app.showLaunchResult(res, idx);
     app.cleanup();
     return 0;
 }

@@ -310,6 +310,27 @@ ApkInfo parseApk(const std::string& path) {
     unzFile zf = unzOpen(path.c_str());
     if (!zf) return info;
 
+    // ── Step 0: which native lib ABI(s) does this APK ship? ─────────────
+    // Walk every entry once looking for lib/arm64-v8a/ vs any other lib/<abi>/
+    // folder — cheap (just filenames, no decompression) and lets the picker
+    // tag/gray out APKs that can't run before a full extraction is ever tried.
+    {
+        bool sawArm64 = false, sawOtherAbi = false;
+        if (unzGoToFirstFile(zf) == UNZ_OK) {
+            char name[1024];
+            do {
+                if (unzGetCurrentFileInfo(zf, nullptr, name, sizeof(name),
+                                          nullptr, 0, nullptr, 0) != UNZ_OK) break;
+                std::string n = name;
+                if (n.rfind("lib/arm64-v8a/", 0) == 0) sawArm64 = true;
+                else if (n.rfind("lib/", 0) == 0 && n.size() > 4) sawOtherAbi = true;
+            } while (unzGoToNextFile(zf) == UNZ_OK);
+        }
+        info.arch = sawArm64 ? ApkArch::Arm64
+                  : sawOtherAbi ? ApkArch::Arm32Only
+                  : ApkArch::Unknown;
+    }
+
     // ── Step 1: parse AndroidManifest.xml ───────────────────────────────
     auto manifest = readZipEntry(zf, "AndroidManifest.xml");
     AXMLResult ax;

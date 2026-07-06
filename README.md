@@ -126,12 +126,16 @@ If the requested package isn't installed (or the argument is stale/wrong), Andro
 
 Requires [devkitPro](https://devkitpro.org/) with `devkitA64` and `libnx` installed.
 
+As of 0.1.109, Android Horizon is split into three separate NROs — a small launcher/picker, and the actual game-loading "Translation Core" engine as its own binary (plus an x32 placeholder, see [Architecture](#architecture--launcher--translation-core) below). Build all three and arrange them into the real SD-card layout in one step:
+
 ```sh
 export DEVKITPRO=/opt/devkitpro
-make
+./build_all.sh
 ```
 
-Output: `AndroidHorizonNX.nro`
+Output: `testingbuild/AndroidHorizonNX.nro` (copy to `sdmc:/switch/`) and `testingbuild/AndroidHorizonNX/` (copy the whole folder to `sdmc:/switch/AndroidHorizonNX/`) — drag the contents of `testingbuild/` straight onto the SD card.
+
+Each piece also has its own standalone Makefile if you only need to rebuild one: `make` (repo root → Translation Core x64), `make -C launcher`, `make -C core32`.
 
 ### Dependencies (via pacman/devkitPro)
 
@@ -140,6 +144,18 @@ switch-sdl2 switch-sdl2_image switch-sdl2_ttf
 switch-libpng switch-libjpeg-turbo switch-minizip
 switch-mesa switch-glad switch-curl switch-mbedtls
 ```
+
+---
+
+## Architecture — launcher + Translation Core
+
+Android Horizon is split into two pieces that chain-load into each other, rather than one monolithic binary:
+
+- **`AndroidHorizonNX.nro`** (built from `launcher/`) — the picker. Scans `sdmc:/AndroidHorizonNX/apks/`, tags each APK with which native ABI(s) it ships, shows the list, and — on launch — hands off to the right engine via `envSetNextLoad(path, argv)` (the same chain-load mechanism [forwarders](#forwarders--a-dedicated-home-menu-icon-per-game) use), passing the package name as `argv[1]`. It has no ELF loader, JNI shim, or game-engine code of its own at all.
+- **`AHNX-Translation-Core-x64.nro`** (built from the repo root, `source/` + `source/compat/`) — the real engine: everything this README describes above (ELF loading, JIT, the JNI/Bionic compat layer, audio, sensors, the whole thing). It always expects a package name in `argv[1]` — launching it directly without one just shows a message pointing back at the launcher, it's not meant to be run standalone.
+- **`AHNX-Translation-Core-x32.nro`** (built from `core32/`) — a placeholder. **32-bit (`armeabi-v7a`) binaries are not supported at the moment** — running AArch32 code on Switch is possible in principle (there's real prior art for it via a per-title Atmosphere address-space override), but the one real precedent project we found for this depends on a 32-bit build of libnx that isn't publicly available anywhere, and building one from scratch is a substantial, uncertain undertaking of its own. The launcher detects 32-bit-only APKs during scanning and blocks launching them with an explanation, rather than attempting to chain-load into this placeholder — it exists to complete the on-disk layout, not because it does anything yet.
+
+Why split it this way: the two execution states (AArch64 for 64-bit games, AArch32 for a hypothetical future 32-bit engine) can't coexist in one running process — a Switch process runs in one execution state for its whole lifetime. Splitting the picker out from the engine means adding a real 32-bit engine later is "point the launcher at a new NRO," not "rewrite everything."
 
 ---
 
@@ -212,9 +228,12 @@ Measured numbers from hardware:
 | Game | Status | Notes |
 |---|---|---|
 | **Hill Climb Racing** 1.67.0 (Fingersoft) | ✅ Playable | The only game tested. Fully playable — touch controls, real audio, real threads, persistent saves, ~locked 60fps. One known deterministic crash on the Shop/IAP screen (root-caused, not yet patched — see Changelog). |
+| **Angry Birds Classic** ("WebPit" community build 7.3.0) | ❌ Unsupported | 32-bit only (`armeabi-v7a` + `x86`, no `arm64-v8a` at all — checked every entry in the APK directly). This specific build can't run here; a build that ships `arm64-v8a` (e.g. Rovio's later "Rovio Classics" rebrand, unconfirmed) would have a real chance. |
+
+The launcher now tags each scanned APK by architecture automatically and blocks launching anything 32-bit-only with an explanation, rather than only finding out after a failed extraction.
 
 **What a game needs, to have a real chance:**
-- `arm64-v8a` native libraries in the APK (`lib/arm64-v8a/*.so`) — this project only loads AArch64 ELF binaries. ARM32-only (`armeabi-v7a`) APKs won't load at all.
+- `arm64-v8a` native libraries in the APK (`lib/arm64-v8a/*.so`) — this project only loads AArch64 ELF binaries. ARM32-only (`armeabi-v7a`) APKs are detected during scanning and blocked with an explanation (see [Architecture](#architecture--launcher--translation-core)) rather than attempted.
 - A plain `.apk` — the extractor doesn't understand split/`.xapk` packages yet (see Performance Expectations above).
 - An engine that talks to "Android" through native JNI callbacks to a handful of Java-side helper classes (the cocos2d-x `SimpleAudioEngine`/`UserDefault`/activity-callback pattern HCR uses) — that's the actual, tested API surface this project emulates. A game built this way has a real chance even if it's never been tried.
 
@@ -320,6 +339,39 @@ If this approach proves out across many games (not just Hill Climb Racing), the 
 ## Changelog
 
 > Most recent first.
+
+### 0.1.118 — First real stall data, and a self-inflicted stutter found immediately
+
+The frame-stall logging paid off on its very first real test. Highlights from the first session's `compat_log.txt`:
+
+- [x] **Removed a stall we were causing ourselves.** The frame-900 milestone screenshot (`saveGameScreenshot`) landed exactly on a logged 1032ms stall — `glReadPixels`/`IMG_SavePNG` are both genuinely expensive, and this ran on every single test session for no ongoing benefit once the images it produces were already captured and embedded in the README. Removed the capture entirely (dead code, since it's not called anywhere else).
+- [x] **Quantified the actual UserDefault save cost**: even now that saves are debounced to at most once per 2s, each real write still takes ~700-900ms by itself (two separate 805ms/763ms stalls both landed immediately after `UserDefaults: saved 5302 ints...` in the log) — serializing 5000+ entries and writing them to the SD card is just inherently slow, independent of how often it happens. Not fixed yet — the safe fix (moving the actual write to a background thread) needs more careful concurrency handling than a quick patch; noted as a real, quantified target rather than fixed blind.
+- [x] **Found the single worst stutter in the whole session**: an 8.3-*second* freeze (frame 348), landing exactly on the game loading 33 "event textures" back to back in one synchronous burst. This is a real, first-party engine behavior (decoding a whole batch of textures with nothing yielding control in between) — not something fixable from the compat layer without hooking the game's own texture-loading calls, a much bigger undertaking than anything attempted so far.
+- [x] Confirmed the entire loading phase (roughly frame 150-320, an ~12 second span) stalls on nearly every single frame (40-120ms+ each) — matches everything already known about loading being CPU-heavy, now precisely quantified rather than just "felt slow."
+
+### 0.1.117 — Frame-stall logging
+
+Now that the launcher → Translation Core handoff is confirmed working on hardware, added the diagnostic tooling needed to actually chase down remaining stutter with evidence instead of guesswork.
+
+- [x] **Every real frame stall is now logged with its exact duration.** Measures real wall-clock time between one completed frame (right after its `eglSwapBuffers`/`SDL_GL_SwapWindow`) and the next — a steady 60fps session takes ~16.6ms/frame, so anything well past that for a single frame is a genuine, momentary hitch, not measurement noise. Logs `stall: frame N stalled for Xms`, or `STALL(severe): ...` past 100ms for the ones bad enough to actually feel like a freeze. Silent the rest of the time — a real stall is a rare event, not per-frame telemetry, so a disk write per occurrence is fine (nothing like the earlier per-frame logging bugs this project already hunted down and fixed).
+- Next play session's `compat_log.txt` should make it straightforward to correlate stalls with whatever else was happening at that exact frame number (scene transitions, new-texture streaming, JNI activity nearby in the log) — turning "it feels stuttery sometimes" into a concrete list of exactly where to spend optimization effort next.
+
+### 0.1.11x — The real fix for the launcher → Translation Core handoff crash
+
+`launcher_log.txt` from the first hardware test showed the handoff itself succeeding (`envHasNextLoad: true`, `envSetNextLoad OK`) — so the previous argv[1]→argv[0] change wasn't the actual problem. The Translation Core's own `log.txt` from the same attempt showed the real cause: every font load failing immediately (`BFTTF open failed` + `romfs font open failed` for all three fonts), which fails `app.init()` and exits before ever reaching game-loading code — explaining "Software closed".
+
+- [x] **Root cause: `argv[0]` has a special, required meaning to libnx itself.** `romfsInit()` falls back to `argv[0]` to find and open its own `.nro` file on the SD card and read its embedded RomFS section — confirmed against libnx's actual RomFS-mounting behavior. The previous fix had the launcher pass *only* the package name as the whole argv string, which put it in `argv[0]` — overwriting the real path libnx needed internally, so RomFS silently failed to mount and every `romfs:/...` font load failed immediately after. Fixed properly this time: the launcher now passes `"<Core's own path> <package name>"` (two words), so `argv[0]` stays the real path libnx needs and the package name lands at `argv[1]` — the Core reads `argv[1]` again, but now it actually gets there for the right reason.
+- [x] **Found and fixed a second, unrelated bug while investigating**: the launcher's own `romfs/` folder was missing `background.svg` (copy-paste oversight when splitting the project) — harmless (falls back to a flat background) but fixed.
+- [x] Added an early diagnostic log line (to `log.txt`, opened well before `compat_log.txt` exists) recording the exact `argc`/`argv[0]`/`argv[1]` the Core actually received, so any future handoff issue is diagnosable immediately instead of needing another round-trip.
+
+### 0.1.109 — Split into launcher + Translation Core; 32-bit APKs detected and blocked
+
+Triggered by trying an Angry Birds Classic build that turned out to be 32-bit-only (`armeabi-v7a`/`x86`, no `arm64-v8a`). Researched whether AArch32-on-Switch is achievable at all (it is, in principle — real prior art exists) but it needs a 32-bit libnx build that isn't publicly available anywhere, so it's parked as a documented placeholder rather than attempted blind.
+
+- [x] **Architecture detection during scanning**: `ApkInfo` now has an `arch` field (`Arm64` / `Arm32Only` / `Unknown`), detected by checking which `lib/<abi>/` folders an APK actually contains — no more finding out only after a failed extraction attempt.
+- [x] **Split into three NROs**: `AndroidHorizonNX.nro` (new `launcher/` project — scans, lists, tags, and chain-loads) hands off to `AHNX-Translation-Core-x64.nro` (the actual engine — everything this README describes, unchanged internally, just no longer has its own interactive picker) via the same `envSetNextLoad` mechanism already built for external forwarders. `AHNX-Translation-Core-x32.nro` is a placeholder that explains why 32-bit isn't supported yet. `./build_all.sh` builds all three and arranges them into `testingbuild/` matching the real SD-card layout (launcher + a subfolder holding both cores) — drag its contents onto the SD card.
+- [x] **32-bit APKs are now blocked with a clear, honest message** ("32-bit binaries aren't supported at the moment — there isn't enough public documentation available to support this safely yet") instead of a cryptic "No arm64 .so found" failure partway through extraction.
+- Not yet hardware-tested: the chain-load hand-off between launcher and Translation Core (envSetNextLoad targeting our own sibling NRO, not an external forwarder) is a new use of an already-proven mechanism — compiles clean on all three targets, but the actual handoff needs a real test on Aaron's Switch.
 
 ### 0.1.108 — Deeper prior-art review: mostly validation, one robustness addition
 
