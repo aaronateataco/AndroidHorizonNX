@@ -14,6 +14,8 @@
 
 *Made by [aaronworld.uk](https://aaronworld.uk) · [Give it a star ⭐](https://github.com/Aaronateataco/AndroidHorizonNX/stargazers) if you find it interesting!*
 
+**[Website](https://androidhorizon.github.io/website/) · [Compatibility list](https://androidhorizon.github.io/website/compatibility.html) · [Docs](https://androidhorizon.github.io/website/docs/index.html) · [Releases](https://github.com/AndroidHorizon/AndroidHorizonNX/releases)**
+
 </div>
 
 ---
@@ -92,13 +94,13 @@ The road here, each step root-caused on real hardware: JIT data pages needed RW 
 
 | Button | Action |
 |--------|--------|
-| D-pad / Left stick | Navigate APK list |
-| **A** | Launch selected APK |
+| D-pad / Left stick / swipe | Navigate APK list |
+| **A** / tap a game (tap again to launch) | Launch selected APK |
 | **X** | Reinstall + Launch (re-extracts APK) |
-| **Y** | Rescan APK folder |
-| **−** | About screen |
-| **+** | Quit |
-| **B** | Back (on result screen) |
+| **Y** / tap footer | Rescan APK folder |
+| **−** / tap footer | About screen (credits scroll via D-pad/stick/touch-drag) |
+| **+** / tap footer | Quit |
+| **B** | Back (on result/about screen) |
 
 ---
 
@@ -345,6 +347,14 @@ If this approach proves out across many games (not just Hill Climb Racing), the 
 ## Changelog
 
 > Most recent first.
+
+### 0.1.121 — Touch navigation, in-app contributor credits, and the project website
+
+- [x] **Full touch-screen navigation in the launcher**, alongside the existing D-pad/stick/button controls: tap a game row to select it (tap the already-selected row again to launch — mirrors pressing A after moving the cursor there), swipe to scroll the list, and tap footer buttons (Launch/Reinstall/Rescan/About/Quit) directly. `drawFooterBar()` now records each hint's on-screen hitbox as it draws (positions are text-width-dependent, so this was the only reliable way to hit-test it).
+- [x] **Scrollable, categorized contributor credits** in the About screen, sourced from a plain-text `romfs:/contributors.txt` that the release workflow regenerates from the live GitHub org (grouped per-repo) on every build — D-pad/stick/touch-drag all scroll it.
+- [x] **Release workflow now publishes only the bundled SD-card zip** — the individual launcher/Core-x64/Core-x32 NROs are build intermediates, not something to grab individually and drop in the wrong place.
+- [x] Confirmed all three org repos (`AndroidHorizonNX`, `AHNX-Translation-Core`, `website`) carry byte-identical `LICENSE` files.
+- [x] **Built the project website** — a static site (landing page, an honest [compatibility list](https://androidhorizon.github.io/website/compatibility.html) mirroring the one below, and [docs](https://androidhorizon.github.io/website/docs/index.html) covering setup/controls/architecture/building) — live at [androidhorizon.github.io/website](https://androidhorizon.github.io/website/), deployed via GitHub Pages from the `website` repo's `main` branch.
 
 ### 0.1.118 — First real stall data, and a self-inflicted stutter found immediately
 
