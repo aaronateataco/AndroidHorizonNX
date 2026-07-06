@@ -105,6 +105,32 @@ def extract_apk_url(field_text: str):
     return m.group(0) if m else None
 
 
+# GitHub issue-form textareas cap out at 65536 characters — compat_log.txt in
+# particular routinely blows past that (README notes it can log thousands of
+# JNI calls). When a log's too long to paste, dragging the .txt file in
+# instead leaves the field containing *only* GitHub's auto-generated
+# attachment markdown, nothing else — that's the signal used to tell "this
+# is a real pasted log" apart from "this is a file reference to go fetch".
+ATTACHMENT_ONLY_RE = re.compile(
+    r'^\[[^\]]+\]\((https?://github\.com/user-attachments/files/[^\s\)]+)\)$')
+
+
+def resolve_log_field(field_text: str, timeout: int = 30):
+    """Returns (content, error). If the field is just a dragged-in file
+    attachment, downloads and returns its actual text content; otherwise
+    returns the pasted text unchanged."""
+    m = ATTACHMENT_ONLY_RE.match(field_text.strip())
+    if not m:
+        return field_text, None
+    url = m.group(1)
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "android-horizon-compat-bot"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", errors="replace"), None
+    except Exception as e:
+        return None, f"couldn't download the attached log file ({e})"
+
+
 # --------------------------------------------------------------- GitHub API --
 
 def gh_api(method, path, token, payload=None):
@@ -386,6 +412,15 @@ def main():
                "or (since GitHub won't accept a raw .apk upload) rename the file to end in `.zip` "
                "and drag that in instead. Split/`.xapk` packages aren't supported yet.")
     data["apk_url"] = apk_url
+
+    for log_key, log_label in (("launcher_log", "launcher_log.txt"),
+                                ("compat_log", "compat_log.txt"),
+                                ("core_log", "log.txt")):
+        resolved, log_err = resolve_log_field(data[log_key])
+        if log_err:
+            reject(f"Couldn't fetch the attached `{log_label}` ({log_err}). "
+                    "Try re-attaching it, or paste the contents directly if it's short enough.")
+        data[log_key] = resolved
 
     workdir = tempfile.mkdtemp()
     apk_path = os.path.join(workdir, "game.apk")

@@ -43,7 +43,10 @@ body:
     id: launcher_log
     attributes:
       label: launcher_log.txt
-      description: Paste the full contents of sdmc:/AndroidHorizonNX/launcher_log.txt
+      description: >-
+        Paste the full contents of sdmc:/AndroidHorizonNX/launcher_log.txt —
+        or, if it's too long to paste (GitHub caps this box at 65536
+        characters), drag the .txt file itself into this box instead.
       render: text
     validations:
       required: true
@@ -52,7 +55,11 @@ body:
     id: compat_log
     attributes:
       label: compat_log.txt
-      description: Paste the full contents of sdmc:/AndroidHorizonNX/compat_log.txt
+      description: >-
+        Paste the full contents of sdmc:/AndroidHorizonNX/compat_log.txt —
+        or, if it's too long to paste (GitHub caps this box at 65536
+        characters — compat_log.txt especially tends to run long), drag the
+        .txt file itself into this box instead.
       render: text
     validations:
       required: true
@@ -61,7 +68,10 @@ body:
     id: core_log
     attributes:
       label: log.txt (Translation Core)
-      description: Paste the full contents of sdmc:/AndroidHorizonNX/<package>/log.txt
+      description: >-
+        Paste the full contents of sdmc:/AndroidHorizonNX/<package>/log.txt —
+        or, if it's too long to paste (GitHub caps this box at 65536
+        characters), drag the .txt file itself into this box instead.
       render: text
     validations:
       required: true
