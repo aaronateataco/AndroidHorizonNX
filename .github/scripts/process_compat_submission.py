@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""Processes a "Game compatibility report" issue end-to-end: validates the
-submitted APK link, downloads it, extracts an icon, checks the Play Store
-category, runs an automated pass over the three submitted logs, commits the
-result to the AndroidHorizon/compat-reports repo (overwriting any older
-submission for the same package+version), and closes+locks the issue with a
-summary. Untrusted issue content (body, user) only ever flows through
-os.environ / file writes / git — never through a shell string — so it can't
-be used for command injection.
+"""Processes one queued compat-report submission end-to-end: reads
+compat-reports/pending/<id>/{meta.json,launcher_log.txt,compat_log.txt,
+core_log.txt}, downloads the linked APK, reads its package/version/name via
+androguard, extracts an icon, checks the Play Store category, runs an
+automated pass over the three logs, and publishes the result to
+compat-reports/reports/<package>/<version>/ (overwriting any older
+submission for the same package+version) plus data/games.json — then
+removes the pending/ entry.
+
+Triggered by a repository_dispatch fired by the Cloudflare Worker that
+relays the website's submission form (see compat-reports/README.md and the
+website's worker/ folder) — there's no GitHub issue involved, so there's no
+comment/close/lock step; failures are surfaced by this workflow run showing
+red in the Actions tab, plus an error.txt left next to the pending
+submission instead of deleting it, so nothing quietly disappears.
 """
+import hashlib
 import json
 import os
 import re
@@ -27,19 +35,6 @@ VERDICT_LABEL = {
     "unknown": "❓ Inconclusive",
 }
 
-LABEL_MAP = {
-    "The APK": "apk_url",
-    "Where did this APK come from?": "source_site",
-    "launcher_log.txt": "launcher_log",
-    "compat_log.txt": "compat_log",
-    "log.txt (Translation Core)": "core_log",
-    "Anything else worth knowing?": "notes",
-}
-
-REQUIRED_FIELDS = [
-    "apk_url", "source_site", "launcher_log", "compat_log", "core_log",
-]
-
 STALL_RE = re.compile(r'(stall|STALL\(severe\)): frame (\d+) stalled for (\d+)ms')
 FRAME_EVIDENCE_RE = re.compile(r'\bframe\s+\d+\b', re.IGNORECASE)
 ERROR_MARKERS = [
@@ -50,117 +45,8 @@ ERROR_MARKERS = [
 DENSITY_ORDER = ["xxxhdpi", "xxhdpi", "xhdpi", "hdpi", "mdpi", "ldpi", "anydpi", "nodpi"]
 
 
-# ---------------------------------------------------------------- parsing --
-
-def parse_issue_body(body: str) -> dict:
-    """GitHub issue forms render each field as `### Label` followed by the
-    answer (textareas with render: set get the answer inside a fenced code
-    block) — split on that heading structure."""
-    fields, current_label, current_lines = {}, None, []
-
-    def flush():
-        if current_label is not None:
-            fields[current_label] = "\n".join(current_lines).strip("\n")
-
-    for line in body.split("\n"):
-        if line.startswith("### "):
-            flush()
-            current_label = line[4:].strip()
-            current_lines = []
-        else:
-            current_lines.append(line)
-    flush()
-
-    cleaned = {}
-    for label, value in fields.items():
-        v = value.strip()
-        if v == "_No response_":
-            cleaned[label] = ""
-            continue
-        vlines = value.split("\n")
-        if len(vlines) >= 2 and vlines[0].strip().startswith("```") and vlines[-1].strip() == "```":
-            value = "\n".join(vlines[1:-1])
-        cleaned[label] = value.strip("\n")
-    return cleaned
-
-
 def safe_path_component(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.\-]", "_", s.strip())[:100] or "unknown"
-
-
-APK_URL_RE = re.compile(r'https?://[^\s()<>\[\]]+\.(?:apk|zip)\b', re.IGNORECASE)
-
-
-def extract_apk_url(field_text: str):
-    """The "The APK" field is either a plain pasted .apk link, or GitHub's
-    auto-generated attachment markdown from dragging a file in (`[game.zip]
-    (https://github.com/user-attachments/files/.../game.zip)`) — GitHub's
-    upload feature doesn't allow raw .apk files, so submitters attaching one
-    directly are told to rename it to .zip first (it's a real ZIP either
-    way). Pull out the first URL ending in either extension; whether it's
-    actually a valid APK gets checked for real once it's downloaded, via
-    androguard reading its manifest — the extension here is just routing,
-    not validation."""
-    m = APK_URL_RE.search(field_text)
-    return m.group(0) if m else None
-
-
-# GitHub issue-form textareas cap out at 65536 characters — compat_log.txt in
-# particular routinely blows past that (README notes it can log thousands of
-# JNI calls). When a log's too long to paste, dragging the .txt file in
-# instead leaves the field containing *only* GitHub's auto-generated
-# attachment markdown, nothing else — that's the signal used to tell "this
-# is a real pasted log" apart from "this is a file reference to go fetch".
-ATTACHMENT_ONLY_RE = re.compile(
-    r'^\[[^\]]+\]\((https?://github\.com/user-attachments/files/[^\s\)]+)\)$')
-
-
-def resolve_log_field(field_text: str, timeout: int = 30):
-    """Returns (content, error). If the field is just a dragged-in file
-    attachment, downloads and returns its actual text content; otherwise
-    returns the pasted text unchanged."""
-    m = ATTACHMENT_ONLY_RE.match(field_text.strip())
-    if not m:
-        return field_text, None
-    url = m.group(1)
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "android-horizon-compat-bot"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode("utf-8", errors="replace"), None
-    except Exception as e:
-        return None, f"couldn't download the attached log file ({e})"
-
-
-# --------------------------------------------------------------- GitHub API --
-
-def gh_api(method, path, token, payload=None):
-    url = f"https://api.github.com{path}"
-    data = json.dumps(payload).encode() if payload is not None else None
-    req = urllib.request.Request(url, data=data, method=method, headers={
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "android-horizon-compat-bot",
-        "Content-Type": "application/json",
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.status, resp.read()
-    except urllib.error.HTTPError as e:
-        return e.code, e.read()
-
-
-def post_comment(repo, issue_number, token, body):
-    gh_api("POST", f"/repos/{repo}/issues/{issue_number}/comments", token, {"body": body})
-
-
-def add_label(repo, issue_number, token, label):
-    gh_api("POST", f"/repos/{repo}/issues/{issue_number}/labels", token, {"labels": [label]})
-
-
-def close_and_lock(repo, issue_number, token):
-    gh_api("PATCH", f"/repos/{repo}/issues/{issue_number}", token,
-           {"state": "closed", "state_reason": "completed"})
-    gh_api("PUT", f"/repos/{repo}/issues/{issue_number}/lock", token, {"lock_reason": "resolved"})
 
 
 # ------------------------------------------------------------------ steps --
@@ -359,116 +245,133 @@ def analyze_logs(launcher_log, compat_log, core_log):
     }
 
 
-def build_report_md(data, analysis, play_status, old_meta):
+def build_report_md(meta, analysis, old_meta):
     lines = [
-        f"# {data['game_name']} — {data['version_name']}", "",
-        f"**Package:** `{data['package_name']}`  ",
+        f"# {meta['game_name']} — {meta['version_name']}", "",
+        f"**Package:** `{meta['package_name']}`  ",
         f"**Verdict:** {VERDICT_LABEL[analysis['verdict']]}  ",
-        f"**Source:** {data['source_site']} — {data['apk_url']}  ",
-        f"**Play Store category check:** {play_status}  ",
+        f"**Source:** {meta['source_site']} — {meta['apk_url']}  ",
+        f"**APK SHA-256:** `{meta['apk_sha256']}`  ",
+        f"**Play Store category check:** {meta['play_store_category_check']}  ",
+        f"**Submitted by:** {meta['submitted_by']}  ",
     ]
     if old_meta:
-        lines.append(f"**Supersedes:** submission by @{old_meta.get('submitted_by')} on {old_meta.get('submitted_at')}  ")
+        lines.append(f"**Supersedes:** submission by {old_meta.get('submitted_by')} on {old_meta.get('submitted_at')}  ")
     lines += ["", "## Analysis", "", analysis["summary"], "",
               f"- Frame stalls logged: **{analysis['stall_count']}** (severe: **{analysis['severe_count']}**)",
               f"- Worst stall: **{analysis['max_stall_ms']}ms**, average: **{analysis['avg_stall_ms']}ms**"]
     if analysis["first_error"]:
         lines.append(f"- First error/crash line found: `{analysis['first_error']}`")
     lines.append("")
-    if data.get("notes"):
-        lines += ["## Submitter notes", "", data["notes"], ""]
+    if meta.get("notes"):
+        lines += ["## Submitter notes", "", meta["notes"], ""]
     lines += ["## Raw logs", "", "See `launcher_log.txt`, `compat_log.txt`, `core_log.txt` in this folder.", ""]
     return "\n".join(lines)
+
+
+def commit_and_push(reports_dir, message):
+    subprocess.run(["git", "-C", reports_dir, "config", "user.name", "android-horizon-bot"], check=True)
+    subprocess.run(["git", "-C", reports_dir, "config", "user.email",
+                    "github-actions[bot]@users.noreply.github.com"], check=True)
+    subprocess.run(["git", "-C", reports_dir, "add", "-A"], check=True)
+    result = subprocess.run(["git", "-C", reports_dir, "commit", "-m", message], capture_output=True, text=True)
+    if result.returncode != 0 and "nothing to commit" not in (result.stdout + result.stderr):
+        raise RuntimeError(f"git commit failed: {result.stderr}")
+    subprocess.run(["git", "-C", reports_dir, "push", "origin", "main"], check=True)
 
 
 # -------------------------------------------------------------------- main --
 
 def main():
-    repo = os.environ["REPO_FULL"]
-    issue_number = os.environ["ISSUE_NUMBER"]
-    token = os.environ["GITHUB_TOKEN"]
+    submission_id = os.environ["SUBMISSION_ID"]
     org_pat = os.environ.get("ORG_PAT", "").strip()
-    issue_url = os.environ.get("ISSUE_URL", "")
-    issue_user = os.environ.get("ISSUE_USER", "someone")
-    body = os.environ.get("ISSUE_BODY", "")
-
-    raw = parse_issue_body(body)
-    data = {key: raw.get(label, "").strip() for label, key in LABEL_MAP.items()}
-
-    def reject(reason):
-        post_comment(repo, issue_number, token,
-                      f"**This submission couldn't be processed automatically:**\n\n{reason}\n\n"
-                      "Feel free to open a new report once that's fixed — closing this one now.")
-        close_and_lock(repo, issue_number, token)
-        sys.exit(0)
-
-    missing = [k for k in REQUIRED_FIELDS if not data.get(k)]
-    if missing:
-        reject(f"Missing required field(s): {', '.join(missing)}.")
-
-    apk_url = extract_apk_url(data["apk_url"])
-    if not apk_url:
-        reject("Couldn't find a `.apk` or `.zip` link in that field — paste a direct download link, "
-               "or (since GitHub won't accept a raw .apk upload) rename the file to end in `.zip` "
-               "and drag that in instead. Split/`.xapk` packages aren't supported yet.")
-    data["apk_url"] = apk_url
-
-    for log_key, log_label in (("launcher_log", "launcher_log.txt"),
-                                ("compat_log", "compat_log.txt"),
-                                ("core_log", "log.txt")):
-        resolved, log_err = resolve_log_field(data[log_key])
-        if log_err:
-            reject(f"Couldn't fetch the attached `{log_label}` ({log_err}). "
-                    "Try re-attaching it, or paste the contents directly if it's short enough.")
-        data[log_key] = resolved
-
-    workdir = tempfile.mkdtemp()
-    apk_path = os.path.join(workdir, "game.apk")
-    ok, http_code, err = download_apk(data["apk_url"], apk_path)
-    if not ok:
-        reject(f"Couldn't download the APK ({err or 'unknown error'}). "
-               "Make sure the link is a direct, public, non-redirect-walled download.")
-
-    with open(apk_path, "rb") as f:
-        magic = f.read(2)
-    if magic != b"PK":
-        reject("The downloaded file isn't a valid APK/ZIP (bad magic bytes) — "
-               "check the link points directly at the .apk, not an HTML landing page.")
-
-    package, version_name, app_name, meta_err = read_apk_metadata(apk_path)
-    if meta_err:
-        reject(f"Couldn't read this APK ({meta_err}). Make sure it's a normal, unmodified .apk.")
-    data["package_name"] = package
-    data["version_name"] = version_name
-    data["game_name"] = app_name
-
-    icon_path = extract_icon(apk_path, os.path.join(workdir, "icon"))
-    play_status = check_play_store_category(data["package_name"])
-    if play_status == "NOT_GAME":
-        reject(f"The Play Store listing for `{data['package_name']}` categorizes it as a non-game "
-               "app, not a game — this project only tracks games. If that's wrong, open a fresh issue "
-               "and mention it.")
-
-    analysis = analyze_logs(data["launcher_log"], data["compat_log"], data["core_log"])
 
     if not org_pat:
-        add_label(repo, issue_number, token, "needs-manual-review")
-        post_comment(repo, issue_number, token,
-            "Automated analysis finished but this repo isn't configured to publish results yet "
-            "(the `ORG_PAT` secret isn't set) — a maintainer needs to add it. Leaving this issue "
-            f"open with the analysis below so nothing is lost:\n\n"
-            f"**Verdict:** {VERDICT_LABEL[analysis['verdict']]}\n{analysis['summary']}\n\n"
-            f"Stalls: {analysis['stall_count']} (severe: {analysis['severe_count']}, "
-            f"max {analysis['max_stall_ms']}ms, avg {analysis['avg_stall_ms']}ms)\n"
-            + (f"First error/crash line: `{analysis['first_error']}`\n" if analysis["first_error"] else ""))
-        sys.exit(0)
+        print("::error::ORG_PAT secret isn't set — can't read/write compat-reports. "
+              "Add a classic PAT with repo scope on the org as the ORG_PAT secret.")
+        sys.exit(1)
 
+    workdir = tempfile.mkdtemp()
     reports_dir = os.path.join(workdir, "compat-reports")
     clone_url = f"https://{org_pat}@github.com/AndroidHorizon/compat-reports.git"
     subprocess.run(["git", "clone", "--depth", "1", clone_url, reports_dir], check=True, capture_output=True)
 
-    pkg = safe_path_component(data["package_name"])
-    ver = safe_path_component(data["version_name"])
+    pending_dir = os.path.join(reports_dir, "pending", submission_id)
+    if not os.path.isdir(pending_dir):
+        print(f"::error::pending submission {submission_id} not found in compat-reports")
+        sys.exit(1)
+
+    def fail(reason):
+        with open(os.path.join(pending_dir, "error.txt"), "w") as f:
+            f.write(reason + "\n")
+        try:
+            commit_and_push(reports_dir, f"Failed submission {submission_id}: {reason[:72]}")
+        except Exception as e:
+            print(f"::warning::couldn't even commit the error note: {e}")
+        print(f"::error::{reason}")
+        sys.exit(1)
+
+    try:
+        with open(os.path.join(pending_dir, "meta.json")) as f:
+            meta_in = json.load(f)
+    except Exception as e:
+        fail(f"couldn't read meta.json for {submission_id} ({e})")
+        return
+
+    apk_url = (meta_in.get("apk_url") or "").strip()
+    source_site = (meta_in.get("source_site") or "").strip()
+    github_username = (meta_in.get("github_username") or "").strip()
+    notes = (meta_in.get("notes") or "").strip()
+
+    def read_log(name):
+        p = os.path.join(pending_dir, name)
+        if not os.path.exists(p):
+            return ""
+        with open(p, "r", errors="replace") as f:
+            return f.read()
+
+    launcher_log = read_log("launcher_log.txt")
+    compat_log = read_log("compat_log.txt")
+    core_log = read_log("core_log.txt")
+
+    if not apk_url or not source_site or not (launcher_log and compat_log and core_log):
+        fail("missing required fields (apk_url / source_site / one or more logs)")
+        return
+
+    parsed = urllib.parse.urlparse(apk_url)
+    if parsed.scheme not in ("http", "https"):
+        fail(f"apk_url isn't a valid http(s) link: {apk_url}")
+        return
+
+    apk_path = os.path.join(workdir, "game.apk")
+    ok, http_code, err = download_apk(apk_url, apk_path)
+    if not ok:
+        fail(f"couldn't download the APK ({err or 'unknown error'})")
+        return
+
+    with open(apk_path, "rb") as f:
+        apk_bytes = f.read()
+    if apk_bytes[:2] != b"PK":
+        fail("downloaded file isn't a valid APK/ZIP (bad magic bytes)")
+        return
+    apk_sha256 = hashlib.sha256(apk_bytes).hexdigest()
+    del apk_bytes
+
+    package, version_name, app_name, meta_err = read_apk_metadata(apk_path)
+    if meta_err:
+        fail(f"couldn't read the APK's manifest ({meta_err})")
+        return
+
+    icon_path = extract_icon(apk_path, os.path.join(workdir, "icon"))
+    play_status = check_play_store_category(package)
+    if play_status == "NOT_GAME":
+        fail(f"Play Store lists {package} as a non-game app, not a game")
+        return
+
+    analysis = analyze_logs(launcher_log, compat_log, core_log)
+
+    pkg = safe_path_component(package)
+    ver = safe_path_component(version_name)
     target = os.path.join(reports_dir, "reports", pkg, ver)
 
     old_meta = None
@@ -482,11 +385,11 @@ def main():
     os.makedirs(target, exist_ok=True)
 
     with open(os.path.join(target, "launcher_log.txt"), "w") as f:
-        f.write(data["launcher_log"])
+        f.write(launcher_log)
     with open(os.path.join(target, "compat_log.txt"), "w") as f:
-        f.write(data["compat_log"])
+        f.write(compat_log)
     with open(os.path.join(target, "core_log.txt"), "w") as f:
-        f.write(data["core_log"])
+        f.write(core_log)
 
     icon_rel = None
     if icon_path and os.path.exists(icon_path):
@@ -495,16 +398,16 @@ def main():
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     meta = {
-        "game_name": data["game_name"], "package_name": pkg, "version_name": ver,
-        "apk_url": data["apk_url"], "source_site": data["source_site"],
-        "submitted_by": issue_user, "submitted_at": now, "issue_url": issue_url,
-        "notes": data.get("notes", ""), "play_store_category_check": play_status,
+        "game_name": app_name, "package_name": pkg, "version_name": ver,
+        "apk_url": apk_url, "apk_sha256": apk_sha256, "source_site": source_site,
+        "submitted_by": github_username or "anonymous", "submitted_at": now,
+        "notes": notes, "play_store_category_check": play_status,
         "superseded_submission_by": old_meta.get("submitted_by") if old_meta else None,
     }
     with open(os.path.join(target, "meta.json"), "w") as f:
         json.dump(meta, f, indent=2)
     with open(os.path.join(target, "report.md"), "w") as f:
-        f.write(build_report_md(data, analysis, play_status, old_meta))
+        f.write(build_report_md(meta, analysis, old_meta))
 
     games_json_path = os.path.join(reports_dir, "data", "games.json")
     try:
@@ -514,42 +417,24 @@ def main():
         games = []
     games = [g for g in games if g.get("package_name") != pkg]
     games.append({
-        "game_name": data["game_name"], "package_name": pkg, "version_name": ver,
+        "game_name": app_name, "package_name": pkg, "version_name": ver,
         "verdict": analysis["verdict"], "verdict_label": VERDICT_LABEL[analysis["verdict"]],
         "summary": analysis["summary"],
         "icon": f"reports/{pkg}/{ver}/{icon_rel}" if icon_rel else None,
-        "source_site": data["source_site"], "submitted_by": issue_user, "submitted_at": now,
-        "issue_url": issue_url, "report_path": f"reports/{pkg}/{ver}/report.md",
+        "source_site": source_site,
+        "submitted_by": github_username if github_username else "",
+        "submitted_at": now, "report_path": f"reports/{pkg}/{ver}/report.md",
     })
     games.sort(key=lambda g: g["game_name"].lower())
     with open(games_json_path, "w") as f:
         json.dump(games, f, indent=2)
 
-    subprocess.run(["git", "-C", reports_dir, "config", "user.name", "android-horizon-bot"], check=True)
-    subprocess.run(["git", "-C", reports_dir, "config", "user.email",
-                    "github-actions[bot]@users.noreply.github.com"], check=True)
-    subprocess.run(["git", "-C", reports_dir, "add", "-A"], check=True)
-    commit_msg = (f"{'Update' if old_meta else 'Add'} {data['game_name']} {ver} "
-                  f"({VERDICT_LABEL[analysis['verdict']]})\n\nSubmitted by @{issue_user} — {issue_url}")
-    subprocess.run(["git", "-C", reports_dir, "commit", "-m", commit_msg], check=True)
-    subprocess.run(["git", "-C", reports_dir, "push", "origin", "main"], check=True)
+    shutil.rmtree(pending_dir)
 
-    report_url = f"https://github.com/AndroidHorizon/compat-reports/blob/main/reports/{pkg}/{ver}/report.md"
-    summary_comment = (
-        f"**Automated analysis complete.**\n\n"
-        f"**Verdict:** {VERDICT_LABEL[analysis['verdict']]}\n{analysis['summary']}\n\n"
-        f"- Stalls logged: {analysis['stall_count']} (severe: {analysis['severe_count']}, "
-        f"max {analysis['max_stall_ms']}ms, avg {analysis['avg_stall_ms']}ms)\n"
-        + (f"- First error/crash line: `{analysis['first_error']}`\n" if analysis["first_error"] else "")
-        + f"- Play Store category check: {play_status}\n"
-        + (f"- This overwrites a previous submission for the same version (by @{old_meta.get('submitted_by')})\n"
-           if old_meta else "")
-        + f"\nFull report + logs: {report_url}\n"
-          "Compatibility page: https://androidhorizon.github.io/website/compatibility.html\n\n"
-          "Thanks for testing! Closing this issue now — it's a data submission, not a discussion thread."
-    )
-    post_comment(repo, issue_number, token, summary_comment)
-    close_and_lock(repo, issue_number, token)
+    commit_msg = (f"{'Update' if old_meta else 'Add'} {app_name} {ver} "
+                  f"({VERDICT_LABEL[analysis['verdict']]})\n\nSubmitted via website form ({submission_id})")
+    commit_and_push(reports_dir, commit_msg)
+    print(f"Published {app_name} {ver}: {VERDICT_LABEL[analysis['verdict']]}")
 
 
 if __name__ == "__main__":

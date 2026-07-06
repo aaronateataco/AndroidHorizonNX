@@ -254,16 +254,19 @@ The launcher now tags each scanned APK by architecture automatically and blocks 
 
 ### Submitting your own test results
 
-Open a [Game compatibility report](https://github.com/AndroidHorizon/AndroidHorizonNX/issues/new?template=game-compatibility-report.yml) issue with a direct `.apk` link and your three log files (`launcher_log.txt`, `compat_log.txt`, `log.txt`). It's processed entirely by automation (`.github/workflows/compat-submission.yml` + `.github/scripts/process_compat_submission.py`):
+Use the [submission form](https://androidhorizon.github.io/website/submit.html) on the website — no GitHub account needed. Give it a direct `.apk` link, where you got it from, and your three log files (`launcher_log.txt`, `compat_log.txt`, `log.txt`); the log fields have no length limit since it's a plain web form, not a GitHub issue.
 
-1. Rejects the submission if the APK link doesn't end in `.apk`, doesn't download, or isn't a valid ZIP.
-2. Extracts the game's icon straight from the APK's `res/mipmap*`/`res/drawable*` entries.
-3. Checks the Play Store listing for the package name and rejects it if Play Store categorizes it as a non-game app.
-4. Runs the three logs through the same kind of analysis used to chase the frame-stall work above — counts stalls/severe stalls, scans for known crash/error signatures, and checks whether the game ever actually rendered a frame — to produce a verdict (Playable / Runs with issues / Fails to launch / Inconclusive).
-5. Commits the logs + a generated report to [compat-reports](https://github.com/AndroidHorizon/compat-reports) and updates the data the [compatibility page](https://androidhorizon.github.io/website/compatibility.html) renders. A repeat submission for the same package+version **overwrites** the previous one — only the latest result per version is kept.
-6. Posts a one-comment summary and **closes + locks the issue** — it's a data intake form, not a discussion thread.
+The pipeline (website form → Cloudflare Worker → `repository_dispatch` → `.github/workflows/compat-submission.yml` + `.github/scripts/process_compat_submission.py`):
 
-This needs an `ORG_PAT` repo secret (a classic PAT with `repo` scope across the org) configured on this repo to actually publish to `compat-reports` — without it, the analysis still runs but the issue is left open, labeled `needs-manual-review`, with the results posted as a comment instead.
+1. The form POSTs to a small Cloudflare Worker (holds the only token involved; never exposed to the browser), which queues the submission as plain files under `compat-reports/pending/<id>/` via the GitHub Contents API and fires a `repository_dispatch` event — this is also what sidesteps GitHub's ~64KB issue-form/dispatch-payload limits entirely, since the logs are committed as real files, not crammed into an API field.
+2. The Action reads that queued submission, downloads the APK, and rejects it if the link doesn't resolve, isn't a valid ZIP, or androguard can't read a package out of its manifest.
+3. Package name, version, display name, and icon are read straight out of the manifest/resources via androguard — not typed in anywhere, so they can't drift from what was actually tested.
+4. Checks the Play Store listing for the package name and rejects it if Play Store categorizes it as a non-game app.
+5. Runs the three logs through the same kind of analysis used to chase the frame-stall work above — counts stalls/severe stalls, scans for known crash/error signatures, and checks whether the game ever actually rendered a frame — to produce a verdict (Playable / Runs with issues / Fails to launch / Inconclusive).
+6. Commits the logs + a generated report (including the APK's SHA-256) to [compat-reports](https://github.com/AndroidHorizon/compat-reports) and updates the data the [compatibility page](https://androidhorizon.github.io/website/compatibility.html) renders. A repeat submission for the same package+version **overwrites** the previous one — only the latest result per version is kept. The `pending/` entry is deleted once processed.
+7. If you gave a GitHub username (optional, unverified — just for display), it's credited on the [Credits page](https://androidhorizon.github.io/website/credits.html) and the launcher's own About screen, under Testers.
+
+This needs an `ORG_PAT` repo secret (a classic PAT with `repo` scope across the org) configured on this repo — the Action reads and writes `compat-reports` directly, so unlike the old issue-based flow there's no degraded fallback mode; without it, the run just fails visibly in the Actions tab, with an `error.txt` left next to the pending submission in `compat-reports`.
 
 ---
 
@@ -360,6 +363,14 @@ If this approach proves out across many games (not just Hill Climb Racing), the 
 ## Changelog
 
 > Most recent first.
+
+### 0.1.123 — Compat submissions moved from a GitHub issue form to the website
+
+- [x] **Replaced the GitHub issue form with a website form** (`submit.html`) — no GitHub account needed to submit, and no more fighting GitHub's ~64KB issue-field/dispatch-payload limits (`compat_log.txt` routinely exceeded the old textarea cap).
+- [x] **A Cloudflare Worker relay** is the only thing holding the GitHub token now — it queues each submission as plain files under `compat-reports/pending/<id>/` via the Contents API, then fires a `repository_dispatch` event. The Action reads the queue, processes it, and deletes the entry — completely decoupled from GitHub Issues.
+- [x] Credit is now an optional, unverified "GitHub username" field on the form (shows up on the Credits page / About-screen Testers, nothing more) instead of whoever happened to open the issue.
+- [x] Added the APK's **SHA-256** to every report's metadata as a stable identity/dedup signal, independent of package+version string matching.
+- [x] Removed the now-unused issue template and its labels.
 
 ### 0.1.122 — Automated game compatibility submission pipeline
 

@@ -1,21 +1,22 @@
 name: Process compatibility report
 
-# Fires on every new issue; the job itself only proceeds if the issue form
-# auto-applied the `compat-report` label (see
-# .github/ISSUE_TEMPLATE/game-compatibility-report.yml) — this intentionally
-# does NOT trigger on 'labeled' too, so manually re-labeling an unrelated
-# issue can't accidentally re-run the pipeline against it.
+# Fired by the Cloudflare Worker relaying the website's submission form
+# (androidhorizon.github.io/website/submit.html) — it writes the submission
+# to compat-reports/pending/<id>/ via the GitHub Contents API, then POSTs
+# this repository_dispatch event with just the submission id as payload.
+# There's no GitHub issue involved anymore: submitting doesn't need a
+# GitHub account, and there's nowhere for GitHub's issue-form field size
+# limits to bite — the log files are plain files in a git repo, not text
+# crammed into a form field.
 on:
-  issues:
-    types: [opened]
+  repository_dispatch:
+    types: [compat-submission]
 
 permissions:
-  issues: write
   contents: read
 
 jobs:
   process:
-    if: contains(github.event.issue.labels.*.name, 'compat-report')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,19 +30,11 @@ jobs:
 
       - name: Run automated analysis + publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Optional: a classic PAT with repo access to the org, needed to
-          # push results cross-repo to AndroidHorizon/compat-reports. If this
-          # isn't set, the analysis still runs but the submission is left
-          # open with a `needs-manual-review` label instead of being
-          # published — see the script for the exact fallback behavior.
+          # Required (not optional here, unlike the old issue-based flow) —
+          # this workflow needs to both read the queued submission out of
+          # compat-reports and push the result back, and compat-reports is a
+          # different repo than the one this workflow runs in, so the
+          # default per-run GITHUB_TOKEN can't do either.
           ORG_PAT: ${{ secrets.ORG_PAT }}
-          REPO_FULL: ${{ github.repository }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_URL: ${{ github.event.issue.html_url }}
-          ISSUE_USER: ${{ github.event.issue.user.login }}
-          # Passed as an env var (never interpolated into a shell string) so
-          # arbitrary/untrusted issue-body content can't be used for command
-          # injection — the script only ever reads it via os.environ.
-          ISSUE_BODY: ${{ github.event.issue.body }}
+          SUBMISSION_ID: ${{ github.event.client_payload.submission_id }}
         run: python3 .github/scripts/process_compat_submission.py

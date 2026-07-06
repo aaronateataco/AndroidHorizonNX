@@ -69,14 +69,15 @@ jobs:
           }
           fetch_testers() {
             # Community testers aren't git contributors to any repo — they're
-            # the people who submitted a compat-report issue. Pull the
-            # dedup'd submitter list straight from the same games.json the
-            # website's Credits page reads. Skip the category entirely if
-            # nobody's submitted anything yet, rather than showing an empty
-            # heading in the About screen.
+            # the people who submitted a compat report via the website form
+            # (github_username is optional there, so plenty of entries have
+            # no name at all). Pull the dedup'd, non-blank submitter list
+            # straight from the same games.json the website's Credits page
+            # reads. Skip the category entirely if nobody's submitted a name
+            # yet, rather than showing an empty heading in the About screen.
             resp=$(curl -s "https://raw.githubusercontent.com/AndroidHorizon/compat-reports/main/data/games.json")
             names=$(echo "$resp" | grep -o '"submitted_by": *"[^"]*"' \
-              | sed -E 's/.*"submitted_by": *"([^"]*)"/\1/' | sort -u)
+              | sed -E 's/.*"submitted_by": *"([^"]*)"/\1/' | grep -v '^$' | sort -u)
             if [ -n "$names" ]; then
               echo "#Testers"
               echo "$names"
