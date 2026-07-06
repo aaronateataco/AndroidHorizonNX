@@ -254,6 +254,12 @@ Measured numbers from hardware:
 - [ ] Per-APK settings overlay (resolution, framerate cap)
 - [ ] APK delete / manage from the UI
 
+### Phase 4 — Real controller support (docked mode)
+
+Hill Climb Racing has **native MOGA controller support already built in** — confirmed two ways: the extracted APK assets include reference button-layout images for both the **MOGA Pro** (dual analog sticks + shoulder buttons) and **MOGA Pocket** (compact, single stick + d-pad) controllers, and the compat log shows the game actually reading persisted onboarding flags for them (`moga_pro_guide`, `moga_pocket_guide`). MOGA controllers used a standard Xbox-style face-button layout — **A bottom, B right, X left, Y top** — which is diagonally swapped from the Switch's own layout (**A right, B bottom, X top, Y left**). That means real Joy-Con/Pro Controller support for this game specifically could be a relatively short path: map Switch physical buttons to the game's expected MOGA input, swapping **A↔B and X↔Y** so the face buttons land where the game expects them, rather than needing a full custom input scheme. This wouldn't need any game-side changes — cocos2d-x already listens for MOGA-style gamepad input, we'd just need to feed it.
+
+This is the real blocker on docked mode: right now only touch input is implemented (handheld-only), which is why docked mode is disabled entirely — there's no controller input path yet at all, MOGA-shaped or otherwise. Not started; noted here as a promising, concrete lead for whoever picks this up next (PRs welcome).
+
 ### Not Planned (for now)
 
 - Online / multiplayer games (Roblox, Fortnite, etc.)
