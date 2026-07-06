@@ -18,9 +18,15 @@ body:
   - type: textarea
     id: apk_url
     attributes:
-      label: Upload the APK
-      description: Drag and drop the .apk file you tested into this box (GitHub uploads it and drops a download link in here automatically) — or paste a direct link if it's already hosted somewhere. Must end in .apk; split/.xapk packages aren't supported yet.
-      placeholder: Drop the .apk file here, or paste a direct link to one
+      label: The APK
+      description: >-
+        Easiest: paste a direct download link to the .apk you tested.
+        GitHub won't accept a raw .apk drag-and-drop upload (.apk isn't on
+        its allowed-file-types list) — if you'd rather attach the file
+        itself than link to it, rename it to end in .zip first (an APK is
+        a real ZIP file under the hood, so this just works) and drag that
+        into this box instead. Split/.xapk packages aren't supported yet.
+      placeholder: https://example.com/path/to/game.apk (or a dropped-in .zip-renamed upload)
     validations:
       required: true
 

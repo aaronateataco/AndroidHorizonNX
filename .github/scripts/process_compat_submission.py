@@ -28,7 +28,7 @@ VERDICT_LABEL = {
 }
 
 LABEL_MAP = {
-    "Upload the APK": "apk_url",
+    "The APK": "apk_url",
     "Where did this APK come from?": "source_site",
     "launcher_log.txt": "launcher_log",
     "compat_log.txt": "compat_log",
@@ -88,14 +88,19 @@ def safe_path_component(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.\-]", "_", s.strip())[:100] or "unknown"
 
 
-APK_URL_RE = re.compile(r'https?://[^\s()<>\[\]]+\.apk\b', re.IGNORECASE)
+APK_URL_RE = re.compile(r'https?://[^\s()<>\[\]]+\.(?:apk|zip)\b', re.IGNORECASE)
 
 
 def extract_apk_url(field_text: str):
-    """The "Upload the APK" field is either a plain pasted link, or GitHub's
-    auto-generated attachment markdown (`[game.apk](https://github.com/
-    user-attachments/files/.../game.apk)`) from dragging the file in — either
-    way, pull out the first URL that actually ends in .apk."""
+    """The "The APK" field is either a plain pasted .apk link, or GitHub's
+    auto-generated attachment markdown from dragging a file in (`[game.zip]
+    (https://github.com/user-attachments/files/.../game.zip)`) — GitHub's
+    upload feature doesn't allow raw .apk files, so submitters attaching one
+    directly are told to rename it to .zip first (it's a real ZIP either
+    way). Pull out the first URL ending in either extension; whether it's
+    actually a valid APK gets checked for real once it's downloaded, via
+    androguard reading its manifest — the extension here is just routing,
+    not validation."""
     m = APK_URL_RE.search(field_text)
     return m.group(0) if m else None
 
@@ -377,9 +382,9 @@ def main():
 
     apk_url = extract_apk_url(data["apk_url"])
     if not apk_url:
-        reject("Couldn't find a `.apk` link in the upload field — either the drag-and-drop upload "
-               "didn't attach properly, or the pasted link doesn't end in `.apk`. Split/`.xapk` "
-               "packages aren't supported yet.")
+        reject("Couldn't find a `.apk` or `.zip` link in that field — paste a direct download link, "
+               "or (since GitHub won't accept a raw .apk upload) rename the file to end in `.zip` "
+               "and drag that in instead. Split/`.xapk` packages aren't supported yet.")
     data["apk_url"] = apk_url
 
     workdir = tempfile.mkdtemp()
