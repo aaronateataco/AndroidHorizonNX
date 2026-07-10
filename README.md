@@ -272,7 +272,7 @@ This needs an `ORG_PAT` repo secret (a classic PAT with `repo` scope across the 
 
 ## TODO / Roadmap
 
-> Items are roughly ordered by priority. "Phase 0" is the current work.
+> **The living version of this lives on the [public roadmap project board](https://github.com/orgs/AndroidHorizon/projects/1)** (also viewable at [androidhorizon.aaronworld.uk/roadmap.html](https://androidhorizon.aaronworld.uk/roadmap.html)) — that's what gets updated going forward, not this section. What's below is kept as the last detailed narrative snapshot; items are roughly ordered by priority, "Phase 0" is the current work.
 
 ### Phase 0 — Make any game do *something* (in progress)
 
