@@ -31,6 +31,7 @@ static const char* CORE_X32_PATH = "sdmc:/switch/Viridite/Viridite-Translation-C
 // about. Keyed by package id.
 static bool isCompatibleGame(const std::string& pkg) {
     return pkg == "com.fingersoft.hillclimb"   // Hill Climb Racing (cocos2d-x)
+        || pkg == "com.fingersoft.hcr2"        // Hill Climb Racing 2 (cocos2d-x, arm32)
         || pkg == "com.orbital.brainiton";     // Brain It On! (Unity IL2CPP)
 }
 
@@ -944,17 +945,16 @@ struct App {
             logMsg(("launch blocked (incompatible): " + pkg).c_str());
             return false;
         }
+        // 32-bit (armeabi-v7a) games now chain-load the x64 Core, which runs
+        // them under the ARM32 emulation layer. This is experimental and slow —
+        // only allowlisted titles reach here. (Kept behind the allowlist so a
+        // random arm32 APK doesn't drop into a half-built emulator.)
         if (apk.arch == ApkArch::Arm32Only) {
-            noticeText  = "32-bit binaries aren't supported at the moment — "
-                          "there isn't enough public documentation to support "
-                          "this safely yet.";
-            noticeUntil = SDL_GetTicks() + 7000;
-            // CORE_X32_PATH isn't chain-loaded into (it's only a placeholder
-            // that prints the same message), but log where a real x32 build
-            // would eventually go, for whoever picks this up later.
-            logMsg(("launch blocked (32-bit unsupported): " + apk.packageName +
-                    " — would-be core: " + CORE_X32_PATH).c_str());
-            return false;
+            noticeText  = "32-bit game — running under the experimental ARM32 layer. "
+                          "Expect it to be slow/incomplete.";
+            noticeUntil = SDL_GetTicks() + 5000;
+            logMsg(("launch (32-bit via ARM32 layer): " + apk.packageName).c_str());
+            // fall through — chain-load the x64 Core below
         }
         const char* corePath = CORE_X64_PATH;
         struct stat st;
