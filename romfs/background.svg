@@ -8,16 +8,16 @@
   -->
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#07061E"/>
-      <stop offset="100%" stop-color="#1A1861"/>
+      <stop offset="0%" stop-color="#06140F"/>
+      <stop offset="100%" stop-color="#0F3527"/>
     </linearGradient>
     <linearGradient id="planet" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#34E686"/>
-      <stop offset="100%" stop-color="#168C3E"/>
+      <stop offset="0%" stop-color="#35E0A2"/>
+      <stop offset="100%" stop-color="#0F8A54"/>
     </linearGradient>
     <radialGradient id="glow" cx="50%" cy="100%" r="55%">
-      <stop offset="0%" stop-color="#96FFC3" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#96FFC3" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#9CF5D0" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#9CF5D0" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
@@ -30,5 +30,5 @@
   <!-- planet: a huge circle centered far below the frame, so only its top
        rim (~130px) is visible as a gently curved horizon -->
   <ellipse cx="640.0" cy="2790.0" rx="2200.0" ry="2200.0" fill="url(#planet)"/>
-  <ellipse cx="640.0" cy="2790.0" rx="2200.0" ry="2200.0" fill="none" stroke="#96FFC3" stroke-width="5" opacity="0.95"/>
+  <ellipse cx="640.0" cy="2790.0" rx="2200.0" ry="2200.0" fill="none" stroke="#9CF5D0" stroke-width="5" opacity="0.95"/>
 </svg>

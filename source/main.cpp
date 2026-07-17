@@ -38,19 +38,21 @@ static const int ITEM_H   = 108;
 static const int ICON_SZ  = 84;
 static const int VISIBLE  = LIST_H / ITEM_H;
 
-static const SDL_Color C_BG     = {13,  12,  46,  255};
-static const SDL_Color C_HEADER = {24,  22,  86,  255};
-static const SDL_Color C_FOOTER = {9,   8,   34,  255};
-static const SDL_Color C_SEL    = {41,  37,  128, 255};
-static const SDL_Color C_DIV    = {40,  37,  108, 255};
+// Viridite palette — "inside a green gemstone": deep teal-green darks with a
+// jade accent, matching the website's dark theme (was navy + green before).
+static const SDL_Color C_BG     = {6,   20,  15,  255};
+static const SDL_Color C_HEADER = {15,  42,  32,  255};
+static const SDL_Color C_FOOTER = {5,   16,  12,  255};
+static const SDL_Color C_SEL    = {23,  64,  50,  255};
+static const SDL_Color C_DIV    = {36,  80,  67,  255};
 static const SDL_Color C_WHITE  = {255, 255, 255, 255};
-static const SDL_Color C_GRAY   = {168, 170, 205, 255};
-static const SDL_Color C_DIM    = {116, 116, 168, 255};
-static const SDL_Color C_OK     = {52,  230, 134, 255};
-static const SDL_Color C_ERR    = {235, 90,  90,  255};
-static const SDL_Color C_WARN   = {230, 190, 70,  255};
-static const SDL_Color C_INST   = {47,  223, 124, 255};
-static const SDL_Color C_RIM    = {52,  230, 134, 255};
+static const SDL_Color C_GRAY   = {157, 184, 171, 255};
+static const SDL_Color C_DIM    = {109, 138, 124, 255};
+static const SDL_Color C_OK     = {53,  224, 162, 255};
+static const SDL_Color C_ERR    = {255, 107, 127, 255};
+static const SDL_Color C_WARN   = {240, 185, 77,  255};
+static const SDL_Color C_INST   = {53,  224, 162, 255};
+static const SDL_Color C_RIM    = {53,  224, 162, 255};
 
 // ---------------------------------------------------------------------------
 static FILE* g_log = nullptr;
@@ -375,7 +377,7 @@ struct App {
     }
 
     void drawHeaderBar(const std::string& rightText = "") {
-        fill(0, 0, SW, HEADER_H, {24, 22, 86, 205});
+        fill(0, 0, SW, HEADER_H, {15, 42, 32, 205});
         fill(0, HEADER_H - 3, SW, 3, C_RIM);
         int w = drawText(fLg, "Virid", C_WHITE, 30, (HEADER_H - 28) / 2);
         w += drawText(fLg, "ite", C_OK, 30 + w, (HEADER_H - 28) / 2);
@@ -389,7 +391,7 @@ struct App {
 
     void drawFooterBar(const std::vector<std::pair<std::string, std::string>>& hints,
                        const std::string& leftText = "") {
-        fill(0, SH - FOOTER_H, SW, FOOTER_H, {9, 8, 34, 225});
+        fill(0, SH - FOOTER_H, SW, FOOTER_H, {5, 16, 12, 225});
         fill(0, SH - FOOTER_H, SW, 2, C_RIM);
         int cy = SH - FOOTER_H / 2;
         if (!leftText.empty())
@@ -412,7 +414,7 @@ struct App {
                 drawText(fBtn, it->first, C_WHITE, x, cy - gh / 2);
             } else {
                 x -= 26;
-                fillCircle(x + 13, cy, 13, {41, 37, 128, 255});
+                fillCircle(x + 13, cy, 13, {23, 64, 50, 255});
                 std::string letter = it->first.size() > 1 ? "?" : it->first;
                 int gw = 0, gh = 0;
                 TTF_SizeUTF8(fSm, letter.c_str(), &gw, &gh);
@@ -498,7 +500,7 @@ struct App {
         if (maxScroll > 0) {
             int barH = viewH * viewH / total;
             int barY = top + viewH * (int)creditsScroll / total;
-            fill(SW - 6, barY, 6, barH, {72, 66, 170, 200});
+            fill(SW - 6, barY, 6, barH, {45, 110, 88, 200});
         }
     }
 
@@ -598,15 +600,15 @@ struct App {
                 int cy2 = (int)selAnimY;
                 float pulse = 0.5f + 0.5f * sinf(now / 1000.0f * 2.6f);
                 SDL_Rect card = {12, cy2 + 4, SW - 24, ITEM_H - 8};
-                fill(card.x, card.y, card.w, card.h, {41, 37, 128, 235});
+                fill(card.x, card.y, card.w, card.h, {23, 64, 50, 235});
                 for (int g = 1; g <= 5; g++) {
                     Uint8 a = (Uint8)((60 - g * 10) * (0.55f + 0.45f * pulse));
-                    SDL_SetRenderDrawColor(rdr, 52, 230, 134, a);
+                    SDL_SetRenderDrawColor(rdr, 53, 224, 162, a);
                     SDL_Rect gr = {card.x - g, card.y - g,
                                    card.w + 2 * g, card.h + 2 * g};
                     SDL_RenderDrawRect(rdr, &gr);
                 }
-                SDL_SetRenderDrawColor(rdr, 52, 230, 134,
+                SDL_SetRenderDrawColor(rdr, 53, 224, 162,
                                        (Uint8)(160 + 95 * pulse));
                 SDL_RenderDrawRect(rdr, &card);
                 fill(card.x, card.y, 5, card.h, C_RIM);
@@ -643,7 +645,7 @@ struct App {
                     int bw = 0, bh = 0;
                     TTF_SizeUTF8(fSm, INST.c_str(), &bw, &bh);
                     int bx = SW - bw - 40;
-                    fill(bx - 6, iy + 14, bw + 12, bh, {13, 72, 40, 200});
+                    fill(bx - 6, iy + 14, bw + 12, bh, {13, 55, 42, 200});
                     drawText(fSm, INST, C_INST, bx, iy + 14);
                 }
 
@@ -658,7 +660,7 @@ struct App {
             if ((int)apks.size() > VISIBLE) {
                 int barH = LIST_H * VISIBLE / (int)apks.size();
                 int barY = LIST_Y + LIST_H * scroll / (int)apks.size();
-                fill(SW - 6, barY, 6, barH, {72, 66, 170, 200});
+                fill(SW - 6, barY, 6, barH, {45, 110, 88, 200});
             }
         }
 
