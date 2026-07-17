@@ -122,11 +122,11 @@ jobs:
 
       - name: Assemble SD-card layout
         run: |
-          mkdir -p dist/AndroidHorizonNX
-          cp launcher/AndroidHorizonNX.nro dist/AndroidHorizonNX.nro
-          cp core/AHNX-Translation-Core-x64.nro dist/AndroidHorizonNX/AHNX-Translation-Core-x64.nro
-          cp core/core32/AHNX-Translation-Core-x32.nro dist/AndroidHorizonNX/AHNX-Translation-Core-x32.nro
-          (cd dist && zip -r ../AndroidHorizon-sdcard.zip .)
+          mkdir -p dist/Viridite
+          cp launcher/Viridite.nro dist/Viridite.nro
+          cp core/Viridite-Translation-Core-x64.nro dist/Viridite/Viridite-Translation-Core-x64.nro
+          cp core/core32/Viridite-Translation-Core-x32.nro dist/Viridite/Viridite-Translation-Core-x32.nro
+          (cd dist && zip -r ../Viridite-sdcard.zip .)
 
       - name: Determine release tag
         id: ver
@@ -158,9 +158,9 @@ jobs:
         run: |
           LAUNCHER_LAST_TAG=$(cd launcher && git tag --sort=-creatordate | head -1)
           {
-            echo "## Android Horizon — ${{ steps.ver.outputs.tag }}"
+            echo "## Viridite — ${{ steps.ver.outputs.tag }}"
             echo
-            echo "Automated build via GitHub Actions. Bundles the launcher + both Translation Core binaries — drag \`AndroidHorizonNX.nro\` and the \`AndroidHorizonNX/\` folder from \`AndroidHorizon-sdcard.zip\` straight onto your SD card's \`/switch/\` folder."
+            echo "Automated build via GitHub Actions. Bundles the launcher + both Translation Core binaries — drag \`Viridite.nro\` and the \`Viridite/\` folder from \`Viridite-sdcard.zip\` straight onto your SD card's \`/switch/\` folder."
             echo
             echo "### Launcher (Viridite) changes"
             echo
@@ -208,4 +208,4 @@ jobs:
             --title "${{ steps.ver.outputs.tag }}" \
             --notes-file CHANGELOG.md \
             $PRERELEASE_FLAG \
-            AndroidHorizon-sdcard.zip
+            Viridite-sdcard.zip

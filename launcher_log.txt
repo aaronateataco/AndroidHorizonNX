@@ -1,4 +1,4 @@
-Android Horizon launcher starting
+Viridite launcher starting
   BFTTF open failed: Couldn't load font file
   font: romfs DejaVuSans
   BFTTF open failed: Couldn't load font file

@@ -16,13 +16,13 @@
 #include "avatar.h"
 #include "build_number.h"
 
-static const char* APK_DIR = "sdmc:/AndroidHorizonNX/apks";
+static const char* APK_DIR = "sdmc:/Viridite/apks";
 
 // Translation Core NROs live in a subfolder next to this launcher — same
 // convention as any other homebrew "app + resources" layout. x64 is real;
 // x32 is a placeholder (32-bit binaries aren't supported yet — see below).
-static const char* CORE_X64_PATH = "sdmc:/switch/AndroidHorizonNX/AHNX-Translation-Core-x64.nro";
-static const char* CORE_X32_PATH = "sdmc:/switch/AndroidHorizonNX/AHNX-Translation-Core-x32.nro";
+static const char* CORE_X64_PATH = "sdmc:/switch/Viridite/Viridite-Translation-Core-x64.nro";
+static const char* CORE_X32_PATH = "sdmc:/switch/Viridite/Viridite-Translation-Core-x32.nro";
 
 // ---------------------------------------------------------------------------
 // Layout (1280×720) — matches the Translation Core's own UI exactly so the
@@ -54,7 +54,7 @@ static const SDL_Color C_RIM    = {52,  230, 134, 255};
 
 // ---------------------------------------------------------------------------
 static FILE* g_log = nullptr;
-static void logOpen()  { g_log = fopen("sdmc:/AndroidHorizonNX/launcher_log.txt", "w"); }
+static void logOpen()  { g_log = fopen("sdmc:/Viridite/launcher_log.txt", "w"); }
 static void logClose() { if (g_log) { fclose(g_log); g_log = nullptr; } }
 static void logMsg(const char* msg) {
     if (g_log) { fputs(msg, g_log); fputc('\n', g_log); fflush(g_log); }
@@ -163,7 +163,16 @@ struct App {
 
     // ------------------------------------------------------------------
     bool init() {
-        mkdir("sdmc:/AndroidHorizonNX", 0777);
+        // One-time migration for installs from before the Viridite rename: the
+        // data folder (apks, extracted games, saves, logs) used to live at
+        // sdmc:/AndroidHorizonNX. If that exists and the new path doesn't yet,
+        // move it wholesale so nobody loses their installed games on upgrade.
+        {
+            struct stat st;
+            if (stat("sdmc:/Viridite", &st) != 0 && stat("sdmc:/AndroidHorizonNX", &st) == 0)
+                rename("sdmc:/AndroidHorizonNX", "sdmc:/Viridite");
+        }
+        mkdir("sdmc:/Viridite", 0777);
         logOpen();
         logMsg("Viridite launcher starting");
 
@@ -578,7 +587,7 @@ struct App {
 
         if (apks.empty()) {
             drawText(fSm,
-                "No APKs found — place .apk files in sdmc:/AndroidHorizonNX/apks/",
+                "No APKs found — place .apk files in sdmc:/Viridite/apks/",
                 C_GRAY, 30, LIST_Y + 30);
         } else {
             int targetY = LIST_Y + (selected - scroll) * ITEM_H;
@@ -780,7 +789,7 @@ struct App {
     // Manage overlay for the currently-selected APK: framerate cap and
     // delete. Bound to B on the main list, which was otherwise unused there
     // (B only means "back" on the sub-screens this launcher already has).
-    // The actual cap is read and applied by AHNX-Translation-Core at launch
+    // The actual cap is read and applied by the Viridite Translation Core at launch
     // (see readFpsCap in loader.cpp) — this screen just writes the
     // .fps_cap marker file the same way apkIsInstalled reads .installed.
     void showManage() {
@@ -923,7 +932,7 @@ struct App {
         const char* corePath = CORE_X64_PATH;
         struct stat st;
         if (stat(corePath, &st) != 0) {
-            noticeText  = "AHNX-Translation-Core-x64.nro not found next to the launcher.";
+            noticeText  = "Viridite-Translation-Core-x64.nro not found next to the launcher.";
             noticeUntil = SDL_GetTicks() + 7000;
             logMsg(("core NRO missing: " + std::string(corePath)).c_str());
             return false;

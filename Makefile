@@ -11,11 +11,11 @@ include $(DEVKITPRO)/libnx/switch_rules
 
 #---------------------------------------------------------------------------------
 # This is the picker/launcher half of the two-part AHNX split: it only scans
-# APKs, shows the list, and chain-loads into AHNX-Translation-Core-x64 (or
+# APKs, shows the list, and chain-loads into Viridite-Translation-Core-x64 (or
 # the x32 placeholder) via envSetNextLoad — it has no ELF loader or JNI shim
 # of its own. The engine lives in a separate repo:
 # https://github.com/AndroidHorizon/AHNX-Translation-Core
-TARGET		:=	AndroidHorizonNX
+TARGET		:=	Viridite
 BUILD		:=	build
 SOURCES		:=	source
 DATA		:=	data

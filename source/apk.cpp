@@ -394,7 +394,7 @@ ApkInfo parseApk(const std::string& path) {
 
 bool apkIsInstalled(const std::string& pkg_name) {
     if (pkg_name.empty()) return false;
-    std::string marker = std::string("sdmc:/AndroidHorizonNX/games/") + pkg_name + "/.installed";
+    std::string marker = std::string("sdmc:/Viridite/games/") + pkg_name + "/.installed";
     struct stat st;
     return stat(marker.c_str(), &st) == 0;
 }
@@ -404,7 +404,7 @@ bool apkIsInstalled(const std::string& pkg_name) {
 // ---------------------------------------------------------------------------
 int apkGetFpsCap(const std::string& pkg_name) {
     if (pkg_name.empty()) return 0;
-    std::string path = std::string("sdmc:/AndroidHorizonNX/games/") + pkg_name + "/.fps_cap";
+    std::string path = std::string("sdmc:/Viridite/games/") + pkg_name + "/.fps_cap";
     FILE* f = fopen(path.c_str(), "r");
     if (!f) return 0;
     int fps = 0;
@@ -415,7 +415,7 @@ int apkGetFpsCap(const std::string& pkg_name) {
 
 bool apkSetFpsCap(const std::string& pkg_name, int fps) {
     if (pkg_name.empty()) return false;
-    std::string dir  = std::string("sdmc:/AndroidHorizonNX/games/") + pkg_name;
+    std::string dir  = std::string("sdmc:/Viridite/games/") + pkg_name;
     std::string path = dir + "/.fps_cap";
     // The games/<pkg> dir may not exist yet if this APK has never been
     // launched — create it so the choice survives until first install
@@ -453,7 +453,7 @@ static bool removeRecursive(const std::string& path) {
 
 bool apkDeleteInstalledData(const std::string& pkg_name) {
     if (pkg_name.empty()) return false;
-    return removeRecursive(std::string("sdmc:/AndroidHorizonNX/games/") + pkg_name);
+    return removeRecursive(std::string("sdmc:/Viridite/games/") + pkg_name);
 }
 
 bool apkDeleteFile(const std::string& apk_path) {

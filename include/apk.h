@@ -30,7 +30,7 @@ std::vector<ApkInfo> scanApks       (const std::string& dir);
 // Returns true if <pkg_name> has an .installed marker in the games directory.
 bool                 apkIsInstalled (const std::string& pkg_name);
 
-// Per-APK framerate cap, read by AHNX-Translation-Core at launch (see
+// Per-APK framerate cap, read by the Viridite Translation Core at launch (see
 // readFpsCap in loader.cpp). 0 = uncapped/default.
 int  apkGetFpsCap (const std::string& pkg_name);
 bool apkSetFpsCap (const std::string& pkg_name, int fps); // fps<=0 clears it
