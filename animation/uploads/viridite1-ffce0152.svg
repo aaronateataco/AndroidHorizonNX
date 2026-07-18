@@ -1,0 +1,30 @@
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 460" width="460" height="460">
+&#x9;<defs>
+&#x9;&#x9;<linearGradient id="g1" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(186,260,-104.106,74.476,44,178)">
+&#x9;&#x9;&#x9;<stop offset="0" stop-color="#00c853"></stop>
+&#x9;&#x9;&#x9;<stop offset="1" stop-color="#006633"></stop>
+&#x9;&#x9;</linearGradient>
+&#x9;&#x9;<linearGradient id="g2" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,260,-186,0,230,178)">
+&#x9;&#x9;&#x9;<stop offset="0" stop-color="#00e676"></stop>
+&#x9;&#x9;&#x9;<stop offset="1" stop-color="#00a854"></stop>
+&#x9;&#x9;</linearGradient>
+&#x9;&#x9;<linearGradient id="g3" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(186,-210,237.151,210.048,44,218)">
+&#x9;&#x9;&#x9;<stop offset="0" stop-color="#00e676"></stop>
+&#x9;&#x9;&#x9;<stop offset="1" stop-color="#69f0ae"></stop>
+&#x9;&#x9;</linearGradient>
+&#x9;&#x9;<linearGradient id="g4" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,-210,186,0,230,218)">
+&#x9;&#x9;&#x9;<stop offset="0" stop-color="#69f0ae"></stop>
+&#x9;&#x9;&#x9;<stop offset="1" stop-color="#b9f6ca"></stop>
+&#x9;&#x9;</linearGradient>
+&#x9;</defs>
+&#x9;
+&#x9;<path fill-rule="evenodd" class="s0" d="m230 453l-186-260 90-170h192l90 170z"></path>
+&#x9;<path fill-rule="evenodd" class="s1" d="m230 438l-186-260 186 40z"></path>
+&#x9;<path fill-rule="evenodd" class="s2" d="m230 438l186-260-186 40z"></path>
+&#x9;<path fill-rule="evenodd" class="s3" d="m44 178l90-170 96 210z"></path>
+&#x9;<path fill-rule="evenodd" class="s4" d="m416 178l-90-170-96 210z"></path>
+&#x9;<path fill-rule="evenodd" class="s5" d="m134 8l96 90v120z"></path>
+&#x9;<path fill-rule="evenodd" class="s6" d="m326 8l-96 90v120z"></path>
+&#x9;<path fill-rule="evenodd" class="s7" d="m44 178h5l181 255v5z"></path>
+&#x9;<path fill-rule="evenodd" class="s8" d="m44 178l90-170 3 5-88 167z"></path>
+</svg>

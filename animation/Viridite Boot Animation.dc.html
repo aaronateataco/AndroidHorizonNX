@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>Viridite — Launching</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#FFFFFF;}
+  a{color:#00A854;} a:hover{color:#006633;}
+  @keyframes ringSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes gemPulse{0%{transform:scale(1);}8%{transform:scale(1.018);}16%{transform:scale(1);}23%{transform:scale(1.035);}30%{transform:scale(1.005);}36%{transform:scale(1.05);}42%{transform:scale(1.015);}47%{transform:scale(1.07);}52%{transform:scale(1.09);}54%,100%{transform:scale(1.09);}}
+  @keyframes shake{0%,47%{transform:translate(0,0);}48%{transform:translate(-3px,2px);}49%{transform:translate(3px,-2px);}50%{transform:translate(-4px,1px);}51%{transform:translate(4px,2px);}52%{transform:translate(-3px,-2px);}53%{transform:translate(3px,1px);}54%,100%{transform:translate(0,0);}}
+  @keyframes glowBuild{0%{opacity:0;}20%{opacity:.12;}36%{opacity:.3;}47%{opacity:.55;}53%{opacity:.9;}56%,100%{opacity:0;}}
+  @keyframes crack1{0%,12%{stroke-dashoffset:1;}22%{stroke-dashoffset:.93;}30%{stroke-dashoffset:.86;}38%{stroke-dashoffset:.76;}44%{stroke-dashoffset:.64;}48%{stroke-dashoffset:.46;}51%{stroke-dashoffset:.18;}52.5%{stroke-dashoffset:0;}54%{stroke-dashoffset:0;opacity:1;}56%,100%{opacity:0;stroke-dashoffset:0;}}
+  @keyframes debrisFall{0%,55%{transform:translate(0,0) rotate(0deg);opacity:0;}57%{opacity:1;}82%{transform:translate(var(--dx),200px) rotate(var(--dr));opacity:0;}100%{transform:translate(var(--dx),200px) rotate(var(--dr));opacity:0;}}
+  @keyframes crackGlow{0%,42%{opacity:0;}48%{opacity:.5;}53%{opacity:1;}56%,100%{opacity:0;}}
+  @keyframes shardFly{0%,53%{transform:translate(0,0) rotate(0deg);opacity:1;}56%{transform:translate(var(--sx),0) rotate(var(--sr));opacity:1;}66%{opacity:1;}78%{transform:translate(var(--tx),var(--ty)) rotate(var(--rr));opacity:0;}100%{transform:translate(var(--tx),var(--ty)) rotate(var(--rr));opacity:0;}}
+  @keyframes flashOut{0%,53%{opacity:0;}56%{opacity:1;}64%,100%{opacity:0;}}
+  @keyframes shock{0%,53%{opacity:0;transform:scale(.25);}56%{opacity:.8;transform:scale(.5);}76%{opacity:0;transform:scale(1.6);}100%{opacity:0;transform:scale(1.6);}}
+  @keyframes shock2{0%,55%{opacity:0;transform:scale(.2);}58%{opacity:.5;transform:scale(.4);}82%{opacity:0;transform:scale(1.9);}100%{opacity:0;transform:scale(1.9);}}
+  @keyframes iconBurst{0%,51%{transform:scale(.55);opacity:0;}56%{opacity:1;transform:scale(.72);}66%{transform:scale(1.04);opacity:1;}72%{transform:scale(1);}95%{transform:scale(1);opacity:1;}99.5%,100%{transform:scale(1);opacity:0;}}
+  @keyframes iconGlow{0%,52%{opacity:0;}60%{opacity:.7;}78%{opacity:.4;}88%{opacity:.55;}95%{opacity:.4;}99.5%,100%{opacity:0;}}
+  @keyframes particleFly{0%,54%{transform:translate(0,0) scale(1);opacity:0;}56%{opacity:1;}78%{transform:translate(var(--px),var(--py)) scale(.2);opacity:0;}100%{transform:translate(var(--px),var(--py)) scale(.2);opacity:0;}}
+  @keyframes ember{0%{transform:translateY(0) scale(1);opacity:0;}12%{opacity:.9;}70%{transform:translateY(-46px) scale(.5);opacity:0;}100%{transform:translateY(-46px) scale(.5);opacity:0;}}
+  @keyframes ringFade{0%,50%{opacity:1;}56%,100%{opacity:0;}}
+  @keyframes titleSwap{0%,55%{opacity:0;transform:translateY(8px);}62%,96%{opacity:1;transform:translateY(0);}100%{opacity:0;}}
+  @keyframes titleOut{0%{opacity:1;}52%{opacity:1;}56%,100%{opacity:0;}}
+</style>
+</helmet>
+<div style="width:100vw;height:100vh;min-height:640px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse 70% 60% at 50% 45%, #FFFFFF 0%, #F2FBF6 55%, #E4F5EC 100%);font-family:'Outfit',sans-serif;overflow:hidden;position:relative;">
+  <div style="position:relative;width:420px;height:420px;display:flex;align-items:center;justify-content:center;">
+    <div style="position:absolute;width:310px;height:310px;border-radius:50%;animation:ringSpin 7s linear infinite;">
+      <div style="position:absolute;inset:0;border-radius:50%;border:2px solid transparent;border-top-color:rgba(0,168,84,.7);border-right-color:rgba(0,168,84,.1);animation:ringFade 4.8s linear infinite;"></div>
+    </div>
+    <div style="position:absolute;width:310px;height:310px;border-radius:50%;animation:ringSpin 7s linear infinite reverse;">
+      <div style="position:absolute;inset:14px;border-radius:50%;border:1.5px solid transparent;border-bottom-color:rgba(0,200,83,.28);animation:ringFade 4.8s linear infinite;"></div>
+    </div>
+    <div style="position:absolute;left:50%;top:50%;width:280px;height:280px;margin:-140px 0 0 -140px;border-radius:50%;border:3px solid rgba(0,200,83,.6);animation:shock 4.8s cubic-bezier(.2,.6,.3,1) infinite;opacity:0;pointer-events:none;"></div>
+    <div style="position:absolute;left:50%;top:50%;width:280px;height:280px;margin:-140px 0 0 -140px;border-radius:50%;border:2px solid rgba(105,240,174,.5);animation:shock2 4.8s cubic-bezier(.2,.6,.3,1) infinite;opacity:0;pointer-events:none;"></div>
+    <div style="position:absolute;left:34%;bottom:26%;width:5px;height:5px;border-radius:50%;background:#00C853;animation:ember 1.7s ease-out .2s infinite;opacity:0;"></div>
+    <div style="position:absolute;left:64%;bottom:30%;width:4px;height:4px;border-radius:50%;background:#69F0AE;animation:ember 1.4s ease-out .8s infinite;opacity:0;"></div>
+    <div style="position:absolute;left:48%;bottom:22%;width:4px;height:4px;border-radius:50%;background:#00E676;animation:ember 2s ease-out 1.2s infinite;opacity:0;"></div>
+    <div style="position:absolute;left:50%;top:50%;width:210px;height:210px;margin:-105px 0 0 -105px;border-radius:50%;background:radial-gradient(circle,rgba(0,230,118,.4) 0%,rgba(0,230,118,.1) 55%,transparent 75%);filter:blur(12px);animation:iconGlow 4.8s ease-out infinite;opacity:0;z-index:1;"></div>
+    <div style="position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;animation:iconBurst 4.8s ease-out infinite;opacity:0;z-index:1;">
+      <img src="{{ gameIcon }}" alt="Game icon" style="width:150px;height:150px;border-radius:32px;object-fit:cover;display:block;box-shadow:0 20px 44px rgba(0,80,40,.3),0 0 0 4px rgba(255,255,255,.95);"></img>
+    </div>
+    <div style="position:absolute;width:240px;height:240px;animation:shake 4.8s linear infinite;z-index:2;">
+      <div style="position:absolute;inset:0;animation:gemPulse 4.8s ease-in-out infinite;">
+        <div style="position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,rgba(0,230,118,.55) 0%,rgba(0,230,118,.15) 50%,transparent 72%);filter:blur(14px);animation:glowBuild 4.8s ease-in infinite;opacity:0;"></div>
+        <svg viewBox="0 0 460 460" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 14px 26px rgba(0,80,40,.22));">
+          <defs>
+            <linearGradient id="vg1" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(186,260,-104.106,74.476,44,178)"><stop offset="0" stop-color="#00c853"></stop><stop offset="1" stop-color="#006633"></stop></linearGradient>
+            <linearGradient id="vg2" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,260,-186,0,230,178)"><stop offset="0" stop-color="#00e676"></stop><stop offset="1" stop-color="#00a854"></stop></linearGradient>
+            <linearGradient id="vg3" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(186,-210,237.151,210.048,44,178)"><stop offset="0" stop-color="#00e676"></stop><stop offset="1" stop-color="#69f0ae"></stop></linearGradient>
+            <linearGradient id="vg4" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,-210,186,0,230,218)"><stop offset="0" stop-color="#69f0ae"></stop><stop offset="1" stop-color="#b9f6ca"></stop></linearGradient>
+            <clipPath id="halfL"><polygon points="44,178 134,8 230,8 216,66 244,126 220,196 242,266 222,344 230,438"></polygon></clipPath>
+            <clipPath id="halfR"><polygon points="230,8 326,8 416,178 230,438 222,344 242,266 220,196 244,126 216,66"></polygon></clipPath>
+          </defs>
+          <g clip-path="url(#halfL)" style="--sx:-7px;--sr:-1.2deg;--tx:-125px;--ty:74px;--rr:-26deg;animation:shardFly 4.8s cubic-bezier(.45,.02,.85,.4) infinite;transform-box:fill-box;transform-origin:50% 96%;">
+            <path fill-rule="evenodd" fill="url(#vg1)" d="m230 438l-186-260 186 40z"></path>
+            <path fill-rule="evenodd" fill="url(#vg2)" d="m230 438l186-260-186 40z"></path>
+            <path fill-rule="evenodd" fill="url(#vg3)" d="m44 178l90-170 96 210z"></path>
+            <path fill-rule="evenodd" fill="url(#vg4)" d="m416 178l-90-170-96 210z"></path>
+            <path fill-rule="evenodd" fill="#69f0ae" opacity="0.6" d="m134 8l96 90v120z"></path>
+            <path fill-rule="evenodd" fill="#b9f6ca" opacity="0.5" d="m44 178h5l181 255v5z"></path>
+          </g>
+          <g clip-path="url(#halfR)" style="--sx:7px;--sr:1.2deg;--tx:125px;--ty:74px;--rr:26deg;animation:shardFly 4.8s cubic-bezier(.45,.02,.85,.4) infinite;transform-box:fill-box;transform-origin:50% 96%;">
+            <path fill-rule="evenodd" fill="url(#vg1)" d="m230 438l-186-260 186 40z"></path>
+            <path fill-rule="evenodd" fill="url(#vg2)" d="m230 438l186-260-186 40z"></path>
+            <path fill-rule="evenodd" fill="url(#vg3)" d="m44 178l90-170 96 210z"></path>
+            <path fill-rule="evenodd" fill="url(#vg4)" d="m416 178l-90-170-96 210z"></path>
+            <path fill-rule="evenodd" fill="#00e676" opacity="0.3" d="m326 8l-96 90v120z"></path>
+          </g>
+          <path d="M230 8 L216 66 L244 126 L220 196 L242 266 L222 344 L230 438" fill="none" stroke="#EAFFF2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" style="animation:crack1 4.8s linear infinite;stroke-dashoffset:1;filter:blur(4px);opacity:.6;"></path>
+          <path d="M230 8 L216 66 L244 126 L220 196 L242 266 L222 344 L230 438" fill="none" stroke="#F4FFF9" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" style="animation:crack1 4.8s linear infinite;stroke-dashoffset:1;"></path>
+          <path d="M224 120 L206 138 M232 210 L214 224 M234 282 L218 300" stroke="#F4FFF9" stroke-width="2.5" stroke-linecap="round" fill="none" style="animation:crackGlow 4.8s ease-in infinite;opacity:0;"></path>
+          <g style="--dx:-34px;--dr:-160deg;animation:debrisFall 4.8s cubic-bezier(.4,0,1,.55) infinite;opacity:0;transform-box:fill-box;transform-origin:center;"><polygon points="222,200 232,210 220,214" fill="#69f0ae"></polygon></g>
+          <g style="--dx:26px;--dr:200deg;animation:debrisFall 4.8s cubic-bezier(.4,0,1,.55) infinite;opacity:0;transform-box:fill-box;transform-origin:center;"><polygon points="238,130 248,138 236,144" fill="#00e676"></polygon></g>
+          <g style="--dx:-14px;--dr:120deg;animation:debrisFall 4.8s cubic-bezier(.4,0,1,.55) infinite;opacity:0;transform-box:fill-box;transform-origin:center;"><polygon points="228,300 236,308 224,312" fill="#b9f6ca"></polygon></g>
+        </svg>
+      </div>
+    </div>
+    <div style="position:absolute;left:50%;top:50%;width:340px;height:340px;margin:-170px 0 0 -170px;border-radius:50%;background:radial-gradient(circle,#FFFFFF 0%,rgba(255,255,255,.85) 40%,transparent 72%);animation:flashOut 4.8s ease-out infinite;opacity:0;pointer-events:none;"></div>
+    <div style="--px:-130px;--py:-90px;position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-4px;border-radius:50%;background:#00E676;animation:particleFly 4.8s ease-out infinite;opacity:0;"></div>
+    <div style="--px:140px;--py:-70px;position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#69F0AE;animation:particleFly 4.8s ease-out infinite;opacity:0;"></div>
+    <div style="--px:-110px;--py:100px;position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-3px;border-radius:50%;background:#00C853;animation:particleFly 4.8s ease-out infinite;opacity:0;"></div>
+    <div style="--px:120px;--py:110px;position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#B9F6CA;animation:particleFly 4.8s ease-out infinite;opacity:0;"></div>
+    <div style="--px:0px;--py:-150px;position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-3px;border-radius:50%;background:#00A854;animation:particleFly 4.8s ease-out infinite;opacity:0;"></div>
+    <div style="--px:-160px;--py:10px;position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:#00E676;animation:particleFly 4.8s ease-out infinite;opacity:0;"></div>
+    <div style="--px:165px;--py:20px;position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:#69F0AE;animation:particleFly 4.8s ease-out infinite;opacity:0;"></div>
+  </div>
+  <div style="position:relative;height:52px;width:600px;margin-top:6px;">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;gap:12px;animation:titleOut 4.8s linear infinite;">
+      <span style="font-size:13px;letter-spacing:.32em;text-transform:uppercase;color:rgba(0,102,51,.55);text-indent:.32em;">Charging core</span>
+      <div style="display:flex;gap:6px;">
+        <span style="width:5px;height:5px;border-radius:50%;background:rgba(0,168,84,.7);"></span>
+        <span style="width:5px;height:5px;border-radius:50%;background:rgba(0,168,84,.45);"></span>
+        <span style="width:5px;height:5px;border-radius:50%;background:rgba(0,168,84,.25);"></span>
+      </div>
+    </div>
+    <div style="position:absolute;inset:0;display:flex;justify-content:center;align-items:flex-start;animation:titleSwap 4.8s ease-out infinite;opacity:0;">
+      <span style="font-size:17px;letter-spacing:.42em;text-transform:uppercase;color:#00753F;font-weight:600;text-indent:.42em;">{{ gameTitle }}</span>
+    </div>
+  </div>
+  <div style="position:absolute;bottom:30px;left:0;right:0;display:flex;justify-content:center;">
+    <span style="font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:rgba(0,102,51,.3);text-indent:.3em;">Viridite</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:800},&quot;gameTitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Hill Climb Racing&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Game&quot;},&quot;gameIcon&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;uploads/pasted-1784314626495-0.png&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Game&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      gameTitle: this.props.gameTitle ?? "Hill Climb Racing",
+      gameIcon: this.props.gameIcon ?? "uploads/pasted-1784314626495-0.png",
+    };
+  }
+}
+</script>
+</body>
+</html>
