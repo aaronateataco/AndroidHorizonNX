@@ -115,7 +115,7 @@ jobs:
         run: docker run --rm -v ${{ github.workspace }}/launcher:/project -w /project devkitpro/devkita64:latest make
 
       - name: Build Translation Core (x64)
-        run: docker run --rm -v ${{ github.workspace }}/core:/project -w /project devkitpro/devkita64:latest make
+        run: docker run --rm -e VIRIDITE_VERSION="${{ inputs.version }}" -v ${{ github.workspace }}/core:/project -w /project devkitpro/devkita64:latest make
 
       - name: Build Translation Core (x32, placeholder)
         run: docker run --rm -v ${{ github.workspace }}/core/core32:/project -w /project devkitpro/devkita64:latest make
